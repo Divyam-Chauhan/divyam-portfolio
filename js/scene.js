@@ -258,8 +258,15 @@ export function createSceneController(state) {
     const pointer = new THREE.Vector2();
     const pointerAtDepth = new THREE.Vector3();
 
-    // Local look-at tracking vector
+    // Local look-at tracking and helix holding animation variables
     let currentLookAt = null;
+    let lastTime = 0;
+    let helixPhaseAccumulator = 0;
+    const helixNormalSpeed = 1.5;
+    const helixHoldSpeed = 0.12;
+    const helixReducedMotionSpeed = 0.08;
+    let currentHelixSpeed = helixNormalSpeed;
+    let currentHelixRadiusScale = 1.0;
 
     function update(time) {
         smoothState();
@@ -342,14 +349,31 @@ export function createSceneController(state) {
         });
 
         // 4. ANIMATE FLOWING DUAL HELIX TRAILS
+        // Slow the dotted helix while the primary pointer is held down.
+        const delta = lastTime === 0 ? 0.016 : (time - lastTime) * 0.001;
+        lastTime = time;
+
+        const targetHelixSpeed = state.reducedMotion
+            ? helixReducedMotionSpeed
+            : (state.pointer.down ? helixHoldSpeed : helixNormalSpeed);
+        currentHelixSpeed = lerp(currentHelixSpeed, targetHelixSpeed, 0.06);
+
+        const targetRadiusScale = state.pointer.down && !state.reducedMotion ? 0.84 : 1.0;
+        currentHelixRadiusScale = lerp(currentHelixRadiusScale, targetRadiusScale, 0.06);
+
+        helixPhaseAccumulator += delta * currentHelixSpeed;
+
         const h1Arr = helix1Geo.attributes.position.array;
         const h2Arr = helix2Geo.attributes.position.array;
         
         for (let i = 0; i < helixCount; i++) {
             const data = helixData[i];
-            const angle1 = data.t * Math.PI * 36 + seconds * 1.5;
+            const angle1 = data.t * Math.PI * 36 + helixPhaseAccumulator;
             const angle2 = angle1 + Math.PI;
-            const radius = 2.4 + Math.sin(data.t * Math.PI * 4 + seconds * 0.5) * 0.25; // Wave oscillation
+            
+            // Pulsate base radius and apply interactive scaling
+            const baseRadius = 2.4 + Math.sin(data.t * Math.PI * 4 + seconds * 0.5) * 0.25;
+            const radius = baseRadius * currentHelixRadiusScale;
             
             const offsetX1 = (Math.cos(angle1) * data.normal.x + Math.sin(angle1) * data.binormal.x) * radius;
             const offsetY1 = (Math.cos(angle1) * data.normal.y + Math.sin(angle1) * data.binormal.y) * radius;

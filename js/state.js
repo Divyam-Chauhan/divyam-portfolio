@@ -5,7 +5,8 @@ export const AppState = {
         clientX: window.innerWidth / 2,
         clientY: window.innerHeight / 2,
         x: 0,
-        y: 0
+        y: 0,
+        down: false
     },
     scrollVelocity: 0,
     scrollProgress: 0,
@@ -52,6 +53,10 @@ export function setPointerFromEvent(event) {
 
 export function setPointerInactive() {
     AppState.pointer.active = false;
+}
+
+export function setPointerDown(isDown) {
+    AppState.pointer.down = isDown;
 }
 
 export function setCardFocus(isFocused) {
