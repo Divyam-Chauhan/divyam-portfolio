@@ -11,6 +11,12 @@ export const AppState = {
     scrollVelocity: 0,
     scrollProgress: 0,
     currentSection: 'hero',
+    heroProgress: 0,
+    identityProgress: 0,
+    capabilitiesProgress: 0,
+    archiveProgress: 0,
+    labProgress: 0,
+    footerProgress: 0,
     cameraTargetZ: 15,
     monolithProgress: 0,
     targetShapeSpeed: 1,
@@ -78,9 +84,20 @@ export function setScrollMetrics({ progress, velocity }) {
     }
 }
 
+export function setChapterProgress(chapter, progress) {
+    const key = `${chapter}Progress`;
+
+    if (key in AppState && Number.isFinite(progress)) {
+        AppState[key] = clamp(progress, 0, 1);
+    }
+}
+
 export function setSection(section) {
     AppState.currentSection = section;
     document.body.dataset.section = section;
+    document.querySelectorAll('[data-marker]').forEach((marker) => {
+        marker.classList.toggle('is-active', marker.dataset.marker === section);
+    });
 }
 
 export function smoothState() {

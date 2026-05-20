@@ -1,4 +1,13 @@
-import { clamp, lerp, setScrollMetrics, setSection } from './state.js';
+import { clamp, lerp, setChapterProgress, setScrollMetrics, setSection } from './state.js';
+
+const CHAPTERS = [
+    { name: 'hero', selector: '.hero-section' },
+    { name: 'identity', selector: '.identity-section' },
+    { name: 'capabilities', selector: '.capabilities-section' },
+    { name: 'archive', selector: '.archive-section' },
+    { name: 'lab', selector: '.lab-section' },
+    { name: 'footer', selector: '.footer-section' }
+];
 
 export function createScrollController(state) {
     const progressBar = document.querySelector('.scroll-progress__bar');
@@ -9,6 +18,8 @@ export function createScrollController(state) {
     let lenis = null;
     let cleanupTicker = null;
     let nativeHandler = null;
+
+    setSection('hero');
 
     if (!state.reducedMotion && gsap && ScrollTrigger && Lenis) {
         gsap.registerPlugin(ScrollTrigger);
@@ -27,6 +38,7 @@ export function createScrollController(state) {
                 velocity: event.velocity
             });
             updateProgress(progressBar, event.progress);
+            updateSceneTargets(state);
         });
 
         const ticker = (time) => {
@@ -38,6 +50,7 @@ export function createScrollController(state) {
         cleanupTicker = () => gsap.ticker.remove(ticker);
 
         initScrollAnimations({ state, gsap, ScrollTrigger, titleChars });
+        updateSceneTargets(state);
     } else {
         nativeHandler = () => updateNativeScrollState(state, progressBar);
         window.addEventListener('scroll', nativeHandler, { passive: true });
@@ -49,6 +62,18 @@ export function createScrollController(state) {
         refresh() {
             ScrollTrigger?.refresh?.();
             lenis?.resize?.();
+        },
+        scrollTo(target) {
+            if (!target) return;
+
+            if (lenis) {
+                lenis.scrollTo(target, { immediate: true, force: true });
+            } else {
+                target.scrollIntoView({ block: 'start' });
+            }
+
+            ScrollTrigger?.refresh?.();
+            ScrollTrigger?.update?.();
         },
         destroy() {
             cleanupTicker?.();
@@ -63,6 +88,7 @@ export function createScrollController(state) {
 function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
     gsap.fromTo('.overlay h1', { autoAlpha: 0, y: 42 }, { autoAlpha: 1, y: 0, duration: 1.4, ease: 'power3.out' });
     gsap.fromTo('.overlay p', { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 1.1, delay: 0.2, ease: 'power3.out' });
+    gsap.fromTo('.hero-proof span', { autoAlpha: 0, x: 18 }, { autoAlpha: 1, x: 0, duration: 0.9, stagger: 0.08, delay: 0.45, ease: 'power3.out' });
 
     const setHeroSkew = gsap.quickSetter('.overlay h1', 'skewY', 'deg');
     gsap.ticker.add(() => {
@@ -71,65 +97,49 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
         setHeroSkew(state.kineticSkew);
     });
 
-    gsap.set('.card', { autoAlpha: 0, y: 46 });
-    ScrollTrigger.batch('.card', {
-        start: 'top 86%',
+    gsap.timeline({
+        scrollTrigger: {
+            trigger: '.hero-section',
+            start: '35% top',
+            end: 'bottom top',
+            scrub: true
+        }
+    })
+        .to('.overlay', { autoAlpha: 0, y: -90, scale: 0.92, ease: 'none' }, 0)
+        .to('.hero-proof', { autoAlpha: 0, y: -60, ease: 'none' }, 0)
+        .to('.scroll-indicator', { autoAlpha: 0, y: -40, ease: 'none' }, 0);
+
+    gsap.set('.identity-heading, .identity-copy p, .identity-marks span, .chapter-heading, .capability-line, .archive-intro, .card, .lab-heading, .lab-note', {
+        autoAlpha: 0,
+        y: 46
+    });
+
+    revealOnEnter(gsap, ScrollTrigger, '.identity-heading, .identity-copy p, .identity-marks span', '.identity-section', 0.1);
+    revealOnEnter(gsap, ScrollTrigger, '.chapter-heading', '.capabilities-section', 0);
+
+    ScrollTrigger.batch('.capability-line', {
+        start: 'top 82%',
         once: true,
-        onEnter: (batch) => {
-            gsap.to(batch, {
-                autoAlpha: 1,
-                y: 0,
-                duration: 0.85,
-                stagger: 0.12,
-                ease: 'power3.out',
-                overwrite: true
-            });
-        }
+        onEnter: (batch) => revealBatch(gsap, batch, 0.1)
     });
 
-    ScrollTrigger.create({
-        trigger: '.hero-section',
-        start: 'top top',
-        end: 'bottom top',
-        scrub: true,
-        onUpdate: () => {
-            setSection('hero');
-            state.ambientBlurTarget = 0;
-            state.monolithProgress = 0;
-        }
+    revealOnEnter(gsap, ScrollTrigger, '.archive-intro', '.archive-section', 0);
+
+    ScrollTrigger.batch('.card', {
+        start: 'top 84%',
+        once: true,
+        onEnter: (batch) => revealBatch(gsap, batch, 0.12)
     });
 
-    ScrollTrigger.create({
-        trigger: '.content-section',
-        start: 'top bottom',
-        end: 'top 15%',
-        scrub: 1,
-        onEnter: () => setSection('archive'),
-        onEnterBack: () => setSection('archive'),
-        onLeaveBack: () => setSection('hero'),
-        onUpdate: () => {
-            state.monolithProgress = 0;
-            state.ambientBlurTarget = 0;
-            state.blueLightTarget = 5;
-            state.warmLightTarget = 0;
-        }
+    revealOnEnter(gsap, ScrollTrigger, '.lab-heading', '.lab-section', 0);
+
+    ScrollTrigger.batch('.lab-note', {
+        start: 'top 84%',
+        once: true,
+        onEnter: (batch) => revealBatch(gsap, batch, 0.12)
     });
 
-    ScrollTrigger.create({
-        trigger: '.footer-section',
-        start: 'top bottom',
-        end: 'center center',
-        scrub: 1.2,
-        onEnter: () => setSection('footer'),
-        onEnterBack: () => setSection('footer'),
-        onLeaveBack: () => setSection('archive'),
-        onUpdate: ({ progress }) => {
-            state.monolithProgress = progress;
-            state.ambientBlurTarget = progress * 0.0025;
-            state.blueLightTarget = 4 + progress * 2.4;
-            state.warmLightTarget = progress * 7.5;
-        }
-    });
+    initChapterProgress({ state, ScrollTrigger });
 
     if (titleChars.length) {
         gsap.set(titleChars, { autoAlpha: 0, y: 34, rotateX: -45 });
@@ -138,7 +148,7 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
             y: 0,
             rotateX: 0,
             duration: 0.8,
-            stagger: 0.035,
+            stagger: 0.025,
             ease: 'power3.out',
             scrollTrigger: {
                 trigger: '.footer-section',
@@ -155,34 +165,96 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
     });
 }
 
+function revealOnEnter(gsap, ScrollTrigger, targets, trigger, stagger) {
+    gsap.to(targets, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.85,
+        stagger,
+        ease: 'power3.out',
+        scrollTrigger: {
+            trigger,
+            start: 'top 72%',
+            once: true
+        }
+    });
+}
+
+function revealBatch(gsap, batch, stagger) {
+    gsap.to(batch, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.85,
+        stagger,
+        ease: 'power3.out',
+        overwrite: true
+    });
+}
+
+function initChapterProgress({ state, ScrollTrigger }) {
+    CHAPTERS.forEach(({ name, selector }) => {
+        ScrollTrigger.create({
+            trigger: selector,
+            start: 'top bottom',
+            end: 'bottom top',
+            scrub: true,
+            onUpdate: ({ progress }) => {
+                setChapterProgress(name, progress);
+                updateSceneTargets(state);
+            }
+        });
+
+        ScrollTrigger.create({
+            trigger: selector,
+            start: 'top 52%',
+            end: 'bottom 52%',
+            onEnter: () => setSection(name),
+            onEnterBack: () => setSection(name)
+        });
+    });
+}
+
 function updateNativeScrollState(state, progressBar) {
     const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
     const progress = window.scrollY / maxScroll;
-    const content = document.querySelector('.content-section');
-    const footer = document.querySelector('.footer-section');
-    const contentTop = content?.offsetTop || window.innerHeight;
-    const footerTop = footer?.offsetTop || maxScroll;
+    let active = 'hero';
 
     setScrollMetrics({ progress, velocity: 0 });
     updateProgress(progressBar, progress);
 
-    if (window.scrollY >= footerTop - window.innerHeight) {
-        const footerProgress = clamp((window.scrollY - (footerTop - window.innerHeight)) / window.innerHeight, 0, 1);
-        setSection('footer');
-        state.monolithProgress = footerProgress;
-        state.ambientBlurTarget = footerProgress * 0.0025;
-        return;
-    }
+    CHAPTERS.forEach(({ name, selector }) => {
+        const section = document.querySelector(selector);
+        if (!section) return;
 
-    if (window.scrollY >= contentTop - window.innerHeight * 0.7) {
-        setSection('archive');
-        state.monolithProgress = 0;
-        state.ambientBlurTarget = 0;
-        return;
-    }
+        const rect = section.getBoundingClientRect();
+        const chapterProgress = clamp((window.innerHeight - rect.top) / (window.innerHeight + rect.height), 0, 1);
+        setChapterProgress(name, chapterProgress);
 
-    setSection('hero');
-    state.monolithProgress = 0;
+        if (rect.top <= window.innerHeight * 0.52 && rect.bottom >= window.innerHeight * 0.52) {
+            active = name;
+        }
+    });
+
+    setSection(active);
+    updateSceneTargets(state);
+}
+
+function updateSceneTargets(state) {
+    const hero = bell(state.heroProgress);
+    const identity = bell(state.identityProgress);
+    const capabilities = bell(state.capabilitiesProgress);
+    const archive = bell(state.archiveProgress);
+    const lab = bell(state.labProgress);
+    const footer = bell(state.footerProgress);
+
+    state.monolithProgress = state.footerProgress;
+    state.ambientBlurTarget = state.reducedMotion ? 0 : Math.max(archive * 0.001, footer * 0.0025);
+    state.blueLightTarget = 3.6 + hero * 1.6 + capabilities * 2.2 + lab * 1.2 - archive * 1.3;
+    state.warmLightTarget = identity * 2.2 + lab * 3.4 + footer * 7.5;
+}
+
+function bell(progress) {
+    return Math.sin(clamp(progress, 0, 1) * Math.PI);
 }
 
 function updateProgress(bar, progress) {
@@ -211,9 +283,9 @@ function splitFooterTitle() {
 }
 
 function revealStaticContent(chars) {
-    document.querySelectorAll('.card').forEach((card) => {
-        card.style.opacity = '1';
-        card.style.transform = 'translate3d(0, 0, 0)';
+    document.querySelectorAll('.identity-heading, .identity-copy p, .identity-marks span, .chapter-heading, .capability-line, .archive-intro, .card, .lab-heading, .lab-note').forEach((element) => {
+        element.style.opacity = '1';
+        element.style.transform = 'translate3d(0, 0, 0)';
     });
 
     chars.forEach((char) => {

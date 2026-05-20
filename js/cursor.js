@@ -3,7 +3,7 @@ import { lerp } from './state.js';
 export function createCursorController(state) {
     const pointerFine = window.matchMedia('(pointer: fine)').matches;
 
-    if (!pointerFine || state.reducedMotion) {
+    if (!pointerFine || state.reducedMotion || window.innerWidth < 768) {
         return { update() {} };
     }
 

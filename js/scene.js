@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { lerp, smoothState } from './state.js';
+import { clamp, lerp, smoothState } from './state.js';
 
 export function createSceneController(state) {
     const scene = new THREE.Scene();
@@ -100,7 +100,7 @@ export function createSceneController(state) {
     }
 
     // 3. Generate Flowing Dual Helix Star Trails wrapping around Spline (Classy Silver Dust)
-    const helixCount = 1000;
+    const helixCount = window.innerWidth < 768 || state.reducedMotion ? 640 : 1100;
     const helix1Geo = new THREE.BufferGeometry();
     const helix2Geo = new THREE.BufferGeometry();
     const h1Positions = new Float32Array(helixCount * 3);
@@ -152,7 +152,7 @@ export function createSceneController(state) {
     scene.add(helix2System);
 
     // 4. Generate Particle Nebula distributed along Spline (Delicate Diamond Dust)
-    const particleCount = window.innerWidth < 768 ? 1200 : 2500;
+    const particleCount = window.innerWidth < 768 || state.reducedMotion ? 1100 : 2600;
     const particleGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const initialOffsets = [];
@@ -205,7 +205,7 @@ export function createSceneController(state) {
     scene.add(particleSystem);
 
     // 5. Generate Shards along Spline
-    const shards = createGlassShards(scene, splinePath, particleCount, particleFrames);
+    const shards = createGlassShards(scene, splinePath, particleCount, particleFrames, state);
 
     // 6. Generate 4 Stationary Faint Light Beacons (Classy Monochrome & Warm tones)
     const beacons = [
@@ -272,9 +272,22 @@ export function createSceneController(state) {
         smoothState();
 
         const seconds = time * 0.001;
-        const monolith = state.monolithProgress;
+        const compactScene = window.innerWidth < 768 || state.reducedMotion;
+        const hero = chapterPresence(state.heroProgress);
+        const identity = chapterPresence(state.identityProgress);
+        const capabilities = chapterPresence(state.capabilitiesProgress);
+        const archive = chapterPresence(state.archiveProgress);
+        const lab = chapterPresence(state.labProgress);
+        const footer = chapterPresence(state.footerProgress);
+        const monolith = state.footerProgress;
+        const readabilityCalm = archive * 0.72;
+        const experimentalEnergy = lab * 1.35;
+        const finalThin = footer * 0.72;
         pointer.set(state.pointer.x, state.pointer.y);
         raycaster.setFromCamera(pointer, camera);
+
+        scene.fog.density = lerp(scene.fog.density, 0.024 + identity * 0.012 - archive * 0.008 + footer * 0.016, 0.035);
+        renderer.toneMappingExposure = lerp(renderer.toneMappingExposure, 1.02 + identity * 0.12 + lab * 0.08 + footer * 0.1 - archive * 0.06, 0.035);
 
         // 1. DOUBLE-LERP CAMERA POSITION & FLIGHT PATH Sync
         const targetCamPos = splinePath.getPointAt(state.scrollProgress);
@@ -306,6 +319,7 @@ export function createSceneController(state) {
         coreSpotlight.rotation.y = spotlightCone.rotation.y;
         coreSpotlight.rotation.x = spotlightCone.rotation.x;
 
+        ambientLight.intensity = lerp(ambientLight.intensity, 0.03 + identity * 0.035 + footer * 0.025, 0.04);
         blueRimLight.intensity = lerp(blueRimLight.intensity, state.blueLightTarget * 0.8, 0.04);
         warmRimLight.intensity = lerp(warmRimLight.intensity, state.warmLightTarget * 0.8, 0.05);
 
@@ -333,18 +347,23 @@ export function createSceneController(state) {
         }
 
         // 3. SPIN & SCALE GEOMETRIC TUNNEL COLLARS based on camera proximity
+        collarGroup.rotation.z = lerp(collarGroup.rotation.z, identity * 0.34 - lab * 0.18 + footer * 0.12, 0.035);
+        collarGroup.rotation.x = lerp(collarGroup.rotation.x, capabilities * 0.08 - identity * 0.06, 0.035);
+
         collars.forEach((collar) => {
-            collar.rotateZ(collar.userData.rotSpeed * 0.008);
+            collar.rotateZ(collar.userData.rotSpeed * 0.008 * (1 + experimentalEnergy));
 
             const distToCam = collar.position.distanceTo(camera.position);
+            const chapterScale = 1 + capabilities * 0.2 + lab * 0.12 + footer * 0.18 - readabilityCalm * 0.08;
+            const opacityMultiplier = clamp(1 + hero * 0.35 + identity * 0.8 + capabilities * 0.22 + lab * 0.45 - readabilityCalm * 0.52 - finalThin * 0.55, 0.16, 2.1);
             if (distToCam < 16) {
                 // High glow and slight dilation when close to camera
-                const scaleVal = 1.0 + (16 - distToCam) * 0.016;
+                const scaleVal = (1.0 + (16 - distToCam) * 0.016) * chapterScale;
                 collar.scale.set(scaleVal, scaleVal, scaleVal);
-                collar.material.opacity = collar.userData.baseOpacity * (1.0 + (16 - distToCam) * 0.09);
+                collar.material.opacity = collar.userData.baseOpacity * (1.0 + (16 - distToCam) * 0.09) * opacityMultiplier;
             } else {
-                collar.scale.set(1, 1, 1);
-                collar.material.opacity = collar.userData.baseOpacity;
+                collar.scale.set(chapterScale, chapterScale, chapterScale);
+                collar.material.opacity = collar.userData.baseOpacity * opacityMultiplier;
             }
         });
 
@@ -363,16 +382,24 @@ export function createSceneController(state) {
 
         helixPhaseAccumulator += delta * currentHelixSpeed;
 
+        const helixOpacityScale = compactScene ? 0.42 : 1;
+        const helixOpacityTarget = clamp(0.42 + hero * 0.2 + identity * 0.26 + capabilities * 0.14 + lab * 0.18 - readabilityCalm * 0.24 - finalThin * 0.32, 0.08, 0.82) * helixOpacityScale;
+        helix1Mat.opacity = lerp(helix1Mat.opacity, state.reducedMotion ? 0.22 : helixOpacityTarget, 0.04);
+        helix2Mat.opacity = lerp(helix2Mat.opacity, state.reducedMotion ? 0.18 : helixOpacityTarget * 0.82, 0.04);
+        helix1Mat.size = lerp(helix1Mat.size, (0.075 + identity * 0.04 + lab * 0.025 - readabilityCalm * 0.02) * (compactScene ? 0.72 : 1), 0.04);
+        helix2Mat.size = lerp(helix2Mat.size, (0.065 + identity * 0.035 + lab * 0.02 - readabilityCalm * 0.018) * (compactScene ? 0.72 : 1), 0.04);
+
         const h1Arr = helix1Geo.attributes.position.array;
         const h2Arr = helix2Geo.attributes.position.array;
         
         for (let i = 0; i < helixCount; i++) {
             const data = helixData[i];
-            const angle1 = data.t * Math.PI * 36 + helixPhaseAccumulator;
+            const turns = 36 - identity * 9 + capabilities * 8 + lab * 12 - footer * 6;
+            const angle1 = data.t * Math.PI * turns + helixPhaseAccumulator;
             const angle2 = angle1 + Math.PI;
             
             // Pulsate base radius and apply interactive scaling
-            const baseRadius = 2.4 + Math.sin(data.t * Math.PI * 4 + seconds * 0.5) * 0.25;
+            const baseRadius = 2.4 + capabilities * 1.2 + identity * 0.55 + lab * 0.35 - readabilityCalm * 0.55 + footer * 0.2 + Math.sin(data.t * Math.PI * 4 + seconds * 0.5) * 0.25;
             const radius = baseRadius * currentHelixRadiusScale;
             
             const offsetX1 = (Math.cos(angle1) * data.normal.x + Math.sin(angle1) * data.binormal.x) * radius;
@@ -398,18 +425,29 @@ export function createSceneController(state) {
         // 5. UPDATE NEBULA DUST PARTICLES
         const posAttr = particleSystem.geometry.attributes.position;
         const count = posAttr.count;
+        particleMaterial.opacity = lerp(particleMaterial.opacity, clamp(0.48 + hero * 0.18 + identity * 0.34 + lab * 0.24 - readabilityCalm * 0.26 - finalThin * 0.34, 0.08, 0.86), 0.04);
+        particleMaterial.size = lerp(particleMaterial.size, 0.09 + identity * 0.055 + lab * 0.03 - readabilityCalm * 0.025, 0.04);
 
         for (let i = 0; i < count; i++) {
             const i3 = i * 3;
             const offset = initialOffsets[i];
             
             // Swirling tube rotation
-            const currentAngle = offset.angle + seconds * 0.06 * offset.speed;
-            const driftRadius = offset.radius + Math.sin(seconds * 0.25 + offset.phase) * 0.12;
+            const currentAngle = offset.angle + seconds * (0.05 + lab * 0.08) * offset.speed;
+            const driftRadius = (offset.radius + Math.sin(seconds * 0.25 + offset.phase) * 0.12) * (1 + identity * 0.72 + capabilities * 0.28 + lab * 0.18 - readabilityCalm * 0.18);
             
             let targetX = offset.pos.x + (Math.cos(currentAngle) * offset.normal.x + Math.sin(currentAngle) * offset.binormal.x) * driftRadius;
             let targetY = offset.pos.y + (Math.cos(currentAngle) * offset.normal.y + Math.sin(currentAngle) * offset.binormal.y) * driftRadius;
             let targetZ = offset.pos.z + (Math.cos(currentAngle) * offset.normal.z + Math.sin(currentAngle) * offset.binormal.z) * driftRadius;
+
+            if (identity > 0.001) {
+                targetY = lerp(targetY, offset.pos.y * 0.16 + Math.sin(offset.t * Math.PI * 12 + seconds) * 0.08, identity * 0.72);
+                targetX += Math.sin(offset.t * Math.PI * 10 + offset.phase) * identity * 0.55;
+            }
+
+            if (capabilities > 0.001) {
+                targetZ += Math.sin(offset.t * Math.PI * 16 + seconds * 0.35) * capabilities * 0.55;
+            }
 
             // Pointer swarming physics - only computed if close to the camera for optimization!
             const distToCam = Math.abs(posAttr.array[i3 + 2] - camera.position.z);
@@ -443,12 +481,15 @@ export function createSceneController(state) {
                 raycaster,
                 pointerAtDepth,
                 camera,
-                state
+                state,
+                lab,
+                archive,
+                footer
             });
         });
 
         // 7. VOLUME AMPLIFICATION ON SCROLL
-        const coneTargetOpacity = 0.025 + monolith * 0.04;
+        const coneTargetOpacity = (0.02 + hero * 0.012 + capabilities * 0.018 + lab * 0.026 + monolith * 0.04 - readabilityCalm * 0.012) * (compactScene ? 0.58 : 1);
         spotlightCone.material.opacity = lerp(spotlightCone.material.opacity, coneTargetOpacity, 0.05);
         coreSpotlight.material.opacity = lerp(coreSpotlight.material.opacity, coneTargetOpacity * 1.5, 0.05);
 
@@ -526,7 +567,7 @@ function createCircleTexture() {
     return new THREE.CanvasTexture(canvas);
 }
 
-function createGlassShards(scene, splinePath, particleCount, particleFrames) {
+function createGlassShards(scene, splinePath, particleCount, particleFrames, state) {
     const octahedronGeo = new THREE.OctahedronGeometry(1.2, 0);
     const torusKnotGeo = new THREE.TorusKnotGeometry(0.64, 0.18, 64, 8);
 
@@ -577,7 +618,7 @@ function createGlassShards(scene, splinePath, particleCount, particleFrames) {
     });
 
     const materials = [clearDiamondMaterial, obsidianGlassMaterial, frostedCrystalMaterial, champagneFrostedMaterial];
-    const count = 14; 
+    const count = state.reducedMotion ? 6 : (window.innerWidth < 768 ? 9 : 16);
     const shards = [];
 
     for (let i = 0; i < count; i++) {
@@ -623,13 +664,14 @@ function createGlassShards(scene, splinePath, particleCount, particleFrames) {
     return shards;
 }
 
-function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state }) {
+function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state, lab, archive, footer }) {
     const distToCam = Math.abs(shard.position.z - camera.position.z);
     
     // Smooth magnetic pull back to designated floating home
     const target = shard.userData.home.clone();
-    const drift = Math.sin(seconds * 0.38 + shard.userData.phase) * (1.0 - monolith) * 0.18;
+    const drift = Math.sin(seconds * (0.38 + lab * 0.35) + shard.userData.phase) * (1.0 - monolith) * (0.18 + lab * 0.22);
     target.y += drift;
+    target.x += Math.sin(seconds * 0.42 + shard.userData.phase) * lab * 0.16;
     
     shard.userData.velocity.add(target.sub(shard.position).multiplyScalar(0.005));
 
@@ -653,15 +695,28 @@ function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDept
     shard.position.add(shard.userData.velocity);
     shard.userData.velocity.multiplyScalar(0.9);
 
-    const speed = state.currentShapeSpeed * (0.55 + (index % 4) * 0.05);
+    const targetScale = clamp(1 + lab * 0.22 - archive * 0.1 + footer * 0.14, 0.78, 1.38);
+    shard.scale.setScalar(lerp(shard.scale.x, targetScale, 0.04));
+
+    const speed = state.currentShapeSpeed * (0.55 + (index % 4) * 0.05) * (1 + lab * 1.7 - archive * 0.22);
     shard.rotation.x += shard.userData.rotateVel.x * speed;
     shard.rotation.y += shard.userData.rotateVel.y * speed;
     shard.rotation.z += shard.userData.rotateVel.z * speed;
 }
 
 function updatePostProcessing(composer, state, monolith) {
-    composer.bloom.strength = lerp(composer.bloom.strength, 0.22 + monolith * 0.12, 0.05); // Elegant, desaturated glow
-    composer.bloom.radius = lerp(composer.bloom.radius, 0.5 + monolith * 0.12, 0.05);
+    const hero = chapterPresence(state.heroProgress);
+    const identity = chapterPresence(state.identityProgress);
+    const capabilities = chapterPresence(state.capabilitiesProgress);
+    const archive = chapterPresence(state.archiveProgress);
+    const lab = chapterPresence(state.labProgress);
+    const footer = chapterPresence(state.footerProgress);
+    const bloomTarget = state.reducedMotion
+        ? 0.04
+        : clamp(0.2 + hero * 0.1 + identity * 0.18 + capabilities * 0.08 + lab * 0.24 + footer * 0.1 - archive * 0.08 + monolith * 0.08, 0.08, 0.62);
+
+    composer.bloom.strength = lerp(composer.bloom.strength, bloomTarget, 0.05);
+    composer.bloom.radius = lerp(composer.bloom.radius, 0.46 + identity * 0.16 + lab * 0.18 + footer * 0.18, 0.05);
 
     if (composer.bokeh.uniforms?.maxblur) {
         composer.bokeh.uniforms.maxblur.value = state.currentBlur;
@@ -672,8 +727,12 @@ function updatePostProcessing(composer, state, monolith) {
     }
 
     if (composer.bokeh.uniforms?.focus) {
-        composer.bokeh.uniforms.focus.value = 7.5 - monolith * 4.2;
+        composer.bokeh.uniforms.focus.value = 7.5 + archive * 1.8 - monolith * 4.2;
     }
+}
+
+function chapterPresence(progress) {
+    return Math.sin(clamp(progress, 0, 1) * Math.PI);
 }
 
 function getPixelRatio(state) {

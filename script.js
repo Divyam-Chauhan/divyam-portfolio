@@ -38,6 +38,22 @@ const interactions = createInteractionController(AppState);
 const cursor = createCursorController(AppState);
 const scroll = createScrollController(AppState);
 
+function restoreHashTarget(attempt = 0) {
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get('chapter') || (window.location.hash ? window.location.hash.slice(1) : '');
+    const target = targetId ? document.getElementById(targetId) : null;
+
+    if (target) {
+        scroll.scrollTo(target);
+
+        if (attempt < 2) {
+            window.setTimeout(() => restoreHashTarget(attempt + 1), 120);
+        }
+    }
+}
+
+requestAnimationFrame(() => restoreHashTarget());
+
 function tick(time) {
     scene.update(time);
     interactions.update();
