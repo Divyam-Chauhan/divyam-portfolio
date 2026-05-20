@@ -28,20 +28,27 @@ export function createSceneController(state) {
     renderer.domElement.className = 'webgl-canvas';
     document.body.prepend(renderer.domElement);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.42);
+    const ambientLight = new THREE.AmbientLight(0x060918, 1.2);
     scene.add(ambientLight);
 
-    const mainLight = new THREE.DirectionalLight(0xffffff, 2);
-    mainLight.position.set(5, 10, 7);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    mainLight.position.set(5, 12, 8);
     scene.add(mainLight);
 
-    const blueRimLight = new THREE.PointLight(0x2c63ff, state.blueLightTarget, 60);
-    blueRimLight.position.set(-10, -5, 5);
+    const blueRimLight = new THREE.PointLight(0x00f0ff, state.blueLightTarget, 55);
+    blueRimLight.position.set(-12, -6, 6);
     scene.add(blueRimLight);
 
-    const warmRimLight = new THREE.PointLight(0xd9a441, 0, 55);
-    warmRimLight.position.set(9, -4, -8);
+    const warmRimLight = new THREE.PointLight(0xff007f, 0, 60);
+    warmRimLight.position.set(10, -5, -6);
     scene.add(warmRimLight);
+
+    // Lusion-Inspired Real-time Interactive Spotlights
+    const cursorLightCyan = new THREE.PointLight(0x00f0ff, 4.5, 38);
+    scene.add(cursorLightCyan);
+
+    const cursorLightMagenta = new THREE.PointLight(0xff007f, 3.8, 38);
+    scene.add(cursorLightMagenta);
 
     const objects = createObjects(scene);
     const composer = createComposer({ renderer, scene, camera, state });
@@ -58,12 +65,31 @@ export function createSceneController(state) {
         raycaster.setFromCamera(pointer, camera);
 
         camera.position.z = lerp(camera.position.z, state.cameraTargetZ, 0.04);
-        camera.position.x = lerp(camera.position.x, state.pointer.x * 0.55, 0.035);
-        camera.position.y = lerp(camera.position.y, state.pointer.y * 0.3, 0.035);
+        camera.position.x = lerp(camera.position.x, state.pointer.x * 0.75, 0.035);
+        camera.position.y = lerp(camera.position.y, state.pointer.y * 0.45, 0.035);
         camera.lookAt(0, 0, 0);
 
         blueRimLight.intensity = lerp(blueRimLight.intensity, state.blueLightTarget, 0.04);
         warmRimLight.intensity = lerp(warmRimLight.intensity, state.warmLightTarget, 0.05);
+
+        // Track spotlights dynamically to follow pointer movement
+        if (state.pointer.active) {
+            const lightTargetX = state.pointer.x * 14;
+            const lightTargetY = state.pointer.y * 10;
+            
+            cursorLightCyan.position.x = lerp(cursorLightCyan.position.x, lightTargetX, 0.06);
+            cursorLightCyan.position.y = lerp(cursorLightCyan.position.y, lightTargetY, 0.06);
+            cursorLightCyan.position.z = 4;
+            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 5.0, 0.06);
+
+            cursorLightMagenta.position.x = lerp(cursorLightMagenta.position.x, -lightTargetX * 0.8, 0.06);
+            cursorLightMagenta.position.y = lerp(cursorLightMagenta.position.y, -lightTargetY * 0.8, 0.06);
+            cursorLightMagenta.position.z = 2;
+            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 4.0, 0.06);
+        } else {
+            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 0, 0.05);
+            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 0, 0.05);
+        }
 
         objects.forEach((object, index) => {
             updateObject({
@@ -98,9 +124,9 @@ function createComposer({ renderer, scene, camera, state }) {
     const renderPass = new RenderPass(scene, camera);
     const bloom = new UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
-        state.reducedMotion ? 0.1 : 0.26,
-        0.42,
-        0.74
+        state.reducedMotion ? 0.1 : 0.35,
+        0.45,
+        0.82
     );
     const bokeh = new BokehPass(scene, camera, {
         focus: 8.0,
@@ -118,18 +144,61 @@ function createComposer({ renderer, scene, camera, state }) {
 }
 
 function createObjects(scene) {
-    const cylinderGeo = new THREE.CylinderGeometry(0.6, 0.6, 3.5, 32);
-    const materials = [
-        new THREE.MeshPhysicalMaterial({ color: 0x1a53ff, roughness: 0.12, metalness: 0.12, clearcoat: 1 }),
-        new THREE.MeshPhysicalMaterial({ color: 0xf7fbff, roughness: 0.2, metalness: 0.08, clearcoat: 1 }),
-        new THREE.MeshPhysicalMaterial({ color: 0x101217, roughness: 0.22, metalness: 0.5, clearcoat: 1 }),
-        new THREE.MeshPhysicalMaterial({ color: 0xd9a441, roughness: 0.18, metalness: 0.25, clearcoat: 1 })
-    ];
+    const octahedronGeo = new THREE.OctahedronGeometry(1.3, 0);
+    const torusKnotGeo = new THREE.TorusKnotGeometry(0.72, 0.22, 64, 8);
+
+    // Highly premium transmissive/refractive crystalline glass materials
+    const glassMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        roughness: 0.05,
+        metalness: 0.05,
+        transmission: 0.96,
+        ior: 1.54,
+        thickness: 2.2,
+        specularIntensity: 1.0,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.05
+    });
+
+    const activeMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0x00f0ff,
+        roughness: 0.08,
+        metalness: 0.1,
+        transmission: 0.88,
+        ior: 1.52,
+        thickness: 1.8,
+        clearcoat: 1.0
+    });
+
+    const magentaMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xff007f,
+        roughness: 0.12,
+        metalness: 0.2,
+        transmission: 0.82,
+        ior: 1.5,
+        thickness: 2.0,
+        clearcoat: 1.0
+    });
+
+    const goldMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xd9a441,
+        roughness: 0.1,
+        metalness: 0.35,
+        transmission: 0.72,
+        ior: 1.56,
+        thickness: 1.5,
+        clearcoat: 1.0
+    });
+
+    const materials = [glassMaterial, activeMaterial, magentaMaterial, goldMaterial];
     const count = window.innerWidth < 768 ? OBJECT_COUNT_MOBILE : OBJECT_COUNT_DESKTOP;
     const objects = [];
 
     for (let i = 0; i < count; i++) {
-        const object = createJack(cylinderGeo, materials[i % materials.length]);
+        // Alternate geometries (Octahedrons & Torus Knots) for sophisticated balance
+        const geometry = i % 2 === 0 ? octahedronGeo : torusKnotGeo;
+        const object = new THREE.Mesh(geometry, materials[i % materials.length]);
+        
         const home = new THREE.Vector3(
             (Math.random() - 0.5) * 35,
             (Math.random() - 0.5) * 28,
@@ -150,9 +219,9 @@ function createObjects(scene) {
             monolith,
             velocity: new THREE.Vector3(),
             rotateVel: new THREE.Vector3(
-                (Math.random() - 0.5) * 0.014,
-                (Math.random() - 0.5) * 0.014,
-                (Math.random() - 0.5) * 0.014
+                (Math.random() - 0.5) * 0.012,
+                (Math.random() - 0.5) * 0.012,
+                (Math.random() - 0.5) * 0.012
             ),
             phase: Math.random() * Math.PI * 2
         };
@@ -162,19 +231,6 @@ function createObjects(scene) {
     }
 
     return objects;
-}
-
-function createJack(geometry, material) {
-    const group = new THREE.Group();
-    const m1 = new THREE.Mesh(geometry, material);
-    const m2 = new THREE.Mesh(geometry, material);
-    const m3 = new THREE.Mesh(geometry, material);
-
-    m2.rotation.z = Math.PI / 2;
-    m3.rotation.x = Math.PI / 2;
-    group.add(m1, m2, m3);
-
-    return group;
 }
 
 function updateObject({ object, index, seconds, monolith, raycaster, pointerAtDepth, state }) {

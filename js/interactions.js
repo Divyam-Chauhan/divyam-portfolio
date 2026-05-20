@@ -84,21 +84,7 @@ function createCardController(card) {
 }
 
 function ensureLensContent(visual) {
-    const existing = visual.querySelector(':scope > .lens-content');
-
-    if (existing) {
-        return existing;
-    }
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'lens-content';
-
-    while (visual.firstChild) {
-        wrapper.appendChild(visual.firstChild);
-    }
-
-    visual.appendChild(wrapper);
-    return wrapper;
+    return visual.querySelector(':scope > .lens-content') || visual;
 }
 
 function createMagneticController(button, appState) {
