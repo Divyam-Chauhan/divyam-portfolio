@@ -92,9 +92,8 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
         start: 'top top',
         end: 'bottom top',
         scrub: true,
-        onUpdate: ({ progress }) => {
+        onUpdate: () => {
             setSection('hero');
-            state.cameraTargetZ = 15 - progress * 2.6;
             state.ambientBlurTarget = 0;
             state.monolithProgress = 0;
         }
@@ -108,8 +107,7 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
         onEnter: () => setSection('archive'),
         onEnterBack: () => setSection('archive'),
         onLeaveBack: () => setSection('hero'),
-        onUpdate: ({ progress }) => {
-            state.cameraTargetZ = 15 + (5 - 15) * progress;
+        onUpdate: () => {
             state.monolithProgress = 0;
             state.ambientBlurTarget = 0;
             state.blueLightTarget = 5;
@@ -126,7 +124,6 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
         onEnterBack: () => setSection('footer'),
         onLeaveBack: () => setSection('archive'),
         onUpdate: ({ progress }) => {
-            state.cameraTargetZ = 5 + (-10 - 5) * progress;
             state.monolithProgress = progress;
             state.ambientBlurTarget = progress * 0.0025;
             state.blueLightTarget = 4 + progress * 2.4;
@@ -172,23 +169,19 @@ function updateNativeScrollState(state, progressBar) {
     if (window.scrollY >= footerTop - window.innerHeight) {
         const footerProgress = clamp((window.scrollY - (footerTop - window.innerHeight)) / window.innerHeight, 0, 1);
         setSection('footer');
-        state.cameraTargetZ = 5 + (-10 - 5) * footerProgress;
         state.monolithProgress = footerProgress;
         state.ambientBlurTarget = footerProgress * 0.0025;
         return;
     }
 
     if (window.scrollY >= contentTop - window.innerHeight * 0.7) {
-        const archiveProgress = clamp((window.scrollY - (contentTop - window.innerHeight * 0.7)) / window.innerHeight, 0, 1);
         setSection('archive');
-        state.cameraTargetZ = 15 + (5 - 15) * archiveProgress;
         state.monolithProgress = 0;
         state.ambientBlurTarget = 0;
         return;
     }
 
     setSection('hero');
-    state.cameraTargetZ = 15;
     state.monolithProgress = 0;
 }
 

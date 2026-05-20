@@ -8,11 +8,10 @@ import { lerp, smoothState } from './state.js';
 
 export function createSceneController(state) {
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x020204, 0.038); // Match obsidian ink background
+    scene.fog = new THREE.FogExp2(0x020204, 0.024); // Atmospheric velvet deep fog
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.z = state.cameraTargetZ;
-
+    
     const renderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: true,
@@ -30,41 +29,224 @@ export function createSceneController(state) {
     const ambientLight = new THREE.AmbientLight(0x050714, 0.04);
     scene.add(ambientLight);
 
-    // Intense central directional spotlight
-    const mainLight = new THREE.DirectionalLight(0xffffff, 2.8);
-    mainLight.position.set(0, 15, -4);
-    scene.add(mainLight);
+    // 1. Define winding 3D Spline Path
+    const splinePoints = [
+        new THREE.Vector3(0, 0, 25),
+        new THREE.Vector3(1.2, 0.8, 5),
+        new THREE.Vector3(-2.2, -1.0, -15),
+        new THREE.Vector3(2.6, 1.4, -38),
+        new THREE.Vector3(-3.0, -0.8, -62),
+        new THREE.Vector3(3.2, 1.6, -88),
+        new THREE.Vector3(-2.4, -1.2, -118),
+        new THREE.Vector3(1.8, 0.8, -148),
+        new THREE.Vector3(-1.0, -0.4, -178),
+        new THREE.Vector3(0, 0, -205)
+    ];
+    const splinePath = new THREE.CatmullRomCurve3(splinePoints);
+    
+    // Set initial camera position along spline
+    const initCamPos = splinePath.getPointAt(0);
+    camera.position.copy(initCamPos);
 
-    const blueRimLight = new THREE.PointLight(0x0df5d6, state.blueLightTarget, 40);
-    blueRimLight.position.set(-8, -4, 4);
-    scene.add(blueRimLight);
+    // 2. Generate Twisting Octagonal Collars (Rings) along Spline
+    const collars = [];
+    const collarCount = 120;
+    const collarGroup = new THREE.Group();
+    scene.add(collarGroup);
 
-    const warmRimLight = new THREE.PointLight(0xff2a85, 0, 45);
-    warmRimLight.position.set(8, -4, -4);
-    scene.add(warmRimLight);
+    for (let i = 0; i < collarCount; i++) {
+        const t = i / (collarCount - 1);
+        const pos = splinePath.getPointAt(t);
+        const tangent = splinePath.getTangentAt(t);
 
-    // Dynamic mouse spotlights moving inside the dust nebula
-    const cursorLightCyan = new THREE.PointLight(0x0df5d6, 5.0, 30);
-    scene.add(cursorLightCyan);
+        // Architectural octagonal loop using TorusGeometry(radius, tube, radialSegments, tubularSegments)
+        const size = 3.6 + Math.sin(t * Math.PI * 6.5) * 0.35;
+        const geo = new THREE.TorusGeometry(size, 0.038, 8, 8); 
 
-    const cursorLightMagenta = new THREE.PointLight(0xff2a85, 4.5, 30);
-    scene.add(cursorLightMagenta);
+        // Luxury color gradient sweep: Cyan -> Indigo -> Rose -> Amber Gold
+        let colorHex;
+        if (t < 0.28) {
+            colorHex = new THREE.Color().lerpColors(new THREE.Color(0x0df5d6), new THREE.Color(0x00c3ff), t / 0.28);
+        } else if (t < 0.58) {
+            colorHex = new THREE.Color().lerpColors(new THREE.Color(0x00c3ff), new THREE.Color(0x5e5ce6), (t - 0.28) / 0.3);
+        } else if (t < 0.84) {
+            colorHex = new THREE.Color().lerpColors(new THREE.Color(0x5e5ce6), new THREE.Color(0xff2a85), (t - 0.58) / 0.26);
+        } else {
+            colorHex = new THREE.Color().lerpColors(new THREE.Color(0xff2a85), new THREE.Color(0xe2c98a), (t - 0.84) / 0.16);
+        }
 
-    // Volumetric Spotlight Cones shining down from top center
+        const mat = new THREE.MeshBasicMaterial({
+            color: colorHex,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.55,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(pos);
+
+        // Align to local curve tangent
+        const up = new THREE.Vector3(0, 1, 0);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, tangent);
+        mesh.quaternion.copy(quaternion);
+
+        mesh.userData = {
+            t,
+            rotSpeed: (0.18 + Math.random() * 0.25) * (Math.random() < 0.5 ? 1 : -1),
+            baseOpacity: 0.16 + (1 - t) * 0.38
+        };
+
+        collarGroup.add(mesh);
+        collars.push(mesh);
+    }
+
+    // 3. Generate Flowing Dual Helix Star Trails wrapping around Spline
+    const helixCount = 1000;
+    const helix1Geo = new THREE.BufferGeometry();
+    const helix2Geo = new THREE.BufferGeometry();
+    const h1Positions = new Float32Array(helixCount * 3);
+    const h2Positions = new Float32Array(helixCount * 3);
+    
+    helix1Geo.setAttribute('position', new THREE.BufferAttribute(h1Positions, 3));
+    helix2Geo.setAttribute('position', new THREE.BufferAttribute(h2Positions, 3));
+    
+    const helixData = [];
+    const frames = splinePath.computeFrenetFrames(helixCount - 1, false);
+    
+    for (let i = 0; i < helixCount; i++) {
+        const t = i / (helixCount - 1);
+        const pos = splinePath.getPointAt(t);
+        const normal = frames.normals[i];
+        const binormal = frames.binormals[i];
+        
+        helixData.push({
+            t,
+            pos: pos.clone(),
+            normal: normal.clone(),
+            binormal: binormal.clone()
+        });
+    }
+    
+    const texture = createCircleTexture();
+    const helix1Mat = new THREE.PointsMaterial({
+        color: 0x0df5d6,
+        size: 0.11,
+        transparent: true,
+        opacity: 0.75,
+        map: texture,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    const helix2Mat = new THREE.PointsMaterial({
+        color: 0xff2a85,
+        size: 0.11,
+        transparent: true,
+        opacity: 0.75,
+        map: texture,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    
+    const helix1System = new THREE.Points(helix1Geo, helix1Mat);
+    const helix2System = new THREE.Points(helix2Geo, helix2Mat);
+    scene.add(helix1System);
+    scene.add(helix2System);
+
+    // 4. Generate Particle Nebula distributed along Spline
+    const particleCount = window.innerWidth < 768 ? 1200 : 2500;
+    const particleGeo = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const initialOffsets = [];
+    
+    const particleFrames = splinePath.computeFrenetFrames(particleCount - 1, false);
+    
+    for (let i = 0; i < particleCount; i++) {
+        const t = Math.random();
+        const frameIdx = Math.floor(t * (particleCount - 1));
+        const pos = splinePath.getPointAt(t);
+        const normal = particleFrames.normals[frameIdx] || new THREE.Vector3(0, 1, 0);
+        const binormal = particleFrames.binormals[frameIdx] || new THREE.Vector3(1, 0, 0);
+        
+        const angle = Math.random() * Math.PI * 2;
+        const r = 2.0 + Math.pow(Math.random(), 1.25) * 5.0; // Shell distribution around tube
+        
+        const px = pos.x + (Math.cos(angle) * normal.x + Math.sin(angle) * binormal.x) * r;
+        const py = pos.y + (Math.cos(angle) * normal.y + Math.sin(angle) * binormal.y) * r;
+        const pz = pos.z + (Math.cos(angle) * normal.z + Math.sin(angle) * binormal.z) * r;
+        
+        positions[i * 3] = px;
+        positions[i * 3 + 1] = py;
+        positions[i * 3 + 2] = pz;
+        
+        initialOffsets.push({
+            t,
+            angle,
+            radius: r,
+            normal: normal.clone(),
+            binormal: binormal.clone(),
+            pos: pos.clone(),
+            phase: Math.random() * Math.PI * 2,
+            speed: 0.35 + Math.random() * 0.75
+        });
+    }
+    
+    particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    
+    const particleMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.12,
+        transparent: true,
+        opacity: 0.65,
+        map: texture,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    
+    const particleSystem = new THREE.Points(particleGeo, particleMaterial);
+    scene.add(particleSystem);
+
+    // 5. Generate Shards along Spline
+    const shards = createGlassShards(scene, splinePath, particleCount, particleFrames);
+
+    // 6. Generate 4 Stationary Colored Light Beacons for stunning glass refractions
+    const beacons = [
+        { color: 0x0df5d6, t: 0.18, intensity: 10 },
+        { color: 0x5e5ce6, t: 0.45, intensity: 12 },
+        { color: 0xff2a85, t: 0.72, intensity: 14 },
+        { color: 0xe2c98a, t: 0.92, intensity: 12 }
+    ];
+    const beaconLights = [];
+    beacons.forEach(b => {
+        const pos = splinePath.getPointAt(b.t);
+        const light = new THREE.PointLight(b.color, b.intensity, 22);
+        light.position.copy(pos);
+        scene.add(light);
+        beaconLights.push(light);
+    });
+
+    // 7. Mount Volumetric spotlight cones and white headlight directly to Camera
     const spotlightCone = createSpotlightCone(0x0df5d6, 0.07, 7.0);
-    scene.add(spotlightCone);
+    camera.add(spotlightCone);
 
     const coreSpotlight = createSpotlightCone(0xffffff, 0.12, 3.2);
-    scene.add(coreSpotlight);
+    camera.add(coreSpotlight);
 
-    // Particle Nebula Swarm & High-Refraction Crystal Shards
-    const particles = createParticleNebula(scene);
-    const shards = createGlassShards(scene);
+    const cameraHeadlight = new THREE.PointLight(0xffffff, 4.0, 16);
+    cameraHeadlight.position.set(0, 0, 0);
+    camera.add(cameraHeadlight);
+
+    // Add camera to scene so parent-child transforms compile correctly
+    scene.add(camera);
 
     const composer = createComposer({ renderer, scene, camera, state });
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     const pointerAtDepth = new THREE.Vector3();
+
+    // Local look-at tracking vector
+    let currentLookAt = null;
 
     function update(time) {
         smoothState();
@@ -74,50 +256,125 @@ export function createSceneController(state) {
         pointer.set(state.pointer.x, state.pointer.y);
         raycaster.setFromCamera(pointer, camera);
 
-        // Smooth camera drift following pointer
-        camera.position.z = lerp(camera.position.z, state.cameraTargetZ, 0.04);
-        camera.position.x = lerp(camera.position.x, state.pointer.x * 0.95, 0.035);
-        camera.position.y = lerp(camera.position.y, state.pointer.y * 0.55, 0.035);
-        camera.lookAt(0, 0, 0);
+        // 1. DOUBLE-LERP CAMERA POSITION & FLIGHT PATH Sync
+        const targetCamPos = splinePath.getPointAt(state.scrollProgress);
 
-        // Volumetric Cone responsive sway following mouse coordinates
-        const coneSwayX = state.pointer.x * 1.8;
-        const coneSwayY = state.pointer.y * 1.2;
-        spotlightCone.rotation.z = lerp(spotlightCone.rotation.z, -coneSwayX * 0.08, 0.04);
-        spotlightCone.rotation.x = lerp(spotlightCone.rotation.x, coneSwayY * 0.08, 0.04);
-        coreSpotlight.rotation.z = spotlightCone.rotation.z;
-        coreSpotlight.rotation.x = spotlightCone.rotation.x;
+        camera.position.x = lerp(camera.position.x, targetCamPos.x + state.pointer.x * 0.35, 0.045);
+        camera.position.y = lerp(camera.position.y, targetCamPos.y + state.pointer.y * 0.22, 0.045);
+        camera.position.z = lerp(camera.position.z, targetCamPos.z, 0.045);
 
-        blueRimLight.intensity = lerp(blueRimLight.intensity, state.blueLightTarget, 0.04);
-        warmRimLight.intensity = lerp(warmRimLight.intensity, state.warmLightTarget, 0.05);
+        // Smoothly interpolate the look-at point slightly ahead
+        const lookAheadT = Math.min(state.scrollProgress + 0.038, 0.995);
+        const targetLookAt = splinePath.getPointAt(lookAheadT);
 
-        // Project mouse coordinate to Z-plane for particle swarm reactions
-        const particlePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 2); // z = -2 plane
-        raycaster.ray.intersectPlane(particlePlane, pointerAtDepth);
-
-        // Track spotlights dynamically to follow pointer movement
-        if (state.pointer.active) {
-            const lightTargetX = state.pointer.x * 12;
-            const lightTargetY = state.pointer.y * 9;
-            
-            cursorLightCyan.position.x = lerp(cursorLightCyan.position.x, lightTargetX, 0.06);
-            cursorLightCyan.position.y = lerp(cursorLightCyan.position.y, lightTargetY, 0.06);
-            cursorLightCyan.position.z = 2.5;
-            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 6.0, 0.06);
-
-            cursorLightMagenta.position.x = lerp(cursorLightMagenta.position.x, -lightTargetX * 0.8, 0.06);
-            cursorLightMagenta.position.y = lerp(cursorLightMagenta.position.y, -lightTargetY * 0.8, 0.06);
-            cursorLightMagenta.position.z = 1.5;
-            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 5.0, 0.06);
+        if (!currentLookAt) {
+            currentLookAt = new THREE.Vector3().copy(targetLookAt);
         } else {
-            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 0, 0.05);
-            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 0, 0.05);
+            currentLookAt.lerp(targetLookAt, 0.045);
         }
 
-        // 1. Swirl & Swarm Particles
-        updateParticles(particles, seconds, pointerAtDepth, state);
+        // Add subtle mouse look-around offset
+        const activeLookAt = currentLookAt.clone().add(new THREE.Vector3(state.pointer.x * 0.8, state.pointer.y * 0.6, 0));
+        camera.lookAt(activeLookAt);
 
-        // 2. Rotate & Drift Glass Shards
+        // 2. SWEEPING VOLUMETRIC FLASHLIGHT / HEADLIGHT EFFECT
+        // Tilt the headlight slightly in response to mouse movement
+        const coneSwayX = state.pointer.x * 0.22;
+        const coneSwayY = state.pointer.y * 0.18;
+        spotlightCone.rotation.y = lerp(spotlightCone.rotation.y, -coneSwayX, 0.045);
+        spotlightCone.rotation.x = lerp(spotlightCone.rotation.x, coneSwayY, 0.045);
+        coreSpotlight.rotation.y = spotlightCone.rotation.y;
+        coreSpotlight.rotation.x = spotlightCone.rotation.x;
+
+        // Project mouse coordinate to Z-plane for particle swarm reactions
+        const particlePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 2); // z = -2 plane relative to camera
+        raycaster.ray.intersectPlane(particlePlane, pointerAtDepth);
+
+        // 3. SPIN & SCALE GEOMETRIC TUNNEL COLLARS based on camera proximity
+        collars.forEach((collar) => {
+            collar.rotateZ(collar.userData.rotSpeed * 0.008);
+
+            const distToCam = collar.position.distanceTo(camera.position);
+            if (distToCam < 16) {
+                // High glow and slight dilation when close to camera
+                const scaleVal = 1.0 + (16 - distToCam) * 0.016;
+                collar.scale.set(scaleVal, scaleVal, scaleVal);
+                collar.material.opacity = collar.userData.baseOpacity * (1.0 + (16 - distToCam) * 0.09);
+            } else {
+                collar.scale.set(1, 1, 1);
+                collar.material.opacity = collar.userData.baseOpacity;
+            }
+        });
+
+        // 4. ANIMATE FLOWING DUAL HELIX TRAILS
+        const h1Arr = helix1Geo.attributes.position.array;
+        const h2Arr = helix2Geo.attributes.position.array;
+        
+        for (let i = 0; i < helixCount; i++) {
+            const data = helixData[i];
+            const angle1 = data.t * Math.PI * 36 + seconds * 1.5;
+            const angle2 = angle1 + Math.PI;
+            const radius = 2.4 + Math.sin(data.t * Math.PI * 4 + seconds * 0.5) * 0.25; // Wave oscillation
+            
+            const offsetX1 = (Math.cos(angle1) * data.normal.x + Math.sin(angle1) * data.binormal.x) * radius;
+            const offsetY1 = (Math.cos(angle1) * data.normal.y + Math.sin(angle1) * data.binormal.y) * radius;
+            const offsetZ1 = (Math.cos(angle1) * data.normal.z + Math.sin(angle1) * data.binormal.z) * radius;
+            
+            const offsetX2 = (Math.cos(angle2) * data.normal.x + Math.sin(angle2) * data.binormal.x) * radius;
+            const offsetY2 = (Math.cos(angle2) * data.normal.y + Math.sin(angle2) * data.binormal.y) * radius;
+            const offsetZ2 = (Math.cos(angle2) * data.normal.z + Math.sin(angle2) * data.binormal.z) * radius;
+            
+            const idx = i * 3;
+            h1Arr[idx] = data.pos.x + offsetX1;
+            h1Arr[idx + 1] = data.pos.y + offsetY1;
+            h1Arr[idx + 2] = data.pos.z + offsetZ1;
+            
+            h2Arr[idx] = data.pos.x + offsetX2;
+            h2Arr[idx + 1] = data.pos.y + offsetY2;
+            h2Arr[idx + 2] = data.pos.z + offsetZ2;
+        }
+        helix1Geo.attributes.position.needsUpdate = true;
+        helix2Geo.attributes.position.needsUpdate = true;
+
+        // 5. UPDATE NEBULA DUST PARTICLES
+        const posAttr = particleSystem.geometry.attributes.position;
+        const count = posAttr.count;
+
+        for (let i = 0; i < count; i++) {
+            const i3 = i * 3;
+            const offset = initialOffsets[i];
+            
+            // Swirling tube rotation
+            const currentAngle = offset.angle + seconds * 0.06 * offset.speed;
+            const driftRadius = offset.radius + Math.sin(seconds * 0.25 + offset.phase) * 0.12;
+            
+            let targetX = offset.pos.x + (Math.cos(currentAngle) * offset.normal.x + Math.sin(currentAngle) * offset.binormal.x) * driftRadius;
+            let targetY = offset.pos.y + (Math.cos(currentAngle) * offset.normal.y + Math.sin(currentAngle) * offset.binormal.y) * driftRadius;
+            let targetZ = offset.pos.z + (Math.cos(currentAngle) * offset.normal.z + Math.sin(currentAngle) * offset.binormal.z) * driftRadius;
+
+            // Pointer swarming physics - only computed if close to the camera for optimization!
+            const distToCam = Math.abs(posAttr.array[i3 + 2] - camera.position.z);
+            if (distToCam < 14 && state.pointer.active && !state.reducedMotion) {
+                const dx = posAttr.array[i3] - pointerAtDepth.x;
+                const dy = posAttr.array[i3 + 1] - pointerAtDepth.y;
+                const dz = posAttr.array[i3 + 2] - pointerAtDepth.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                
+                if (dist < 4.8) {
+                    const force = (4.8 - dist) * 0.08 * state.currentShapeSpeed;
+                    targetX += dx * force;
+                    targetY += dy * force;
+                    targetZ += dz * force;
+                }
+            }
+
+            posAttr.array[i3] = lerp(posAttr.array[i3], targetX, 0.045);
+            posAttr.array[i3 + 1] = lerp(posAttr.array[i3 + 1], targetY, 0.045);
+            posAttr.array[i3 + 2] = lerp(posAttr.array[i3 + 2], targetZ, 0.045);
+        }
+        posAttr.needsUpdate = true;
+
+        // 6. UPDATE TRANSMISSIVE CRYSTAL SHARDS
         shards.forEach((shard, index) => {
             updateShard({
                 shard,
@@ -126,11 +383,12 @@ export function createSceneController(state) {
                 monolith,
                 raycaster,
                 pointerAtDepth,
+                camera,
                 state
             });
         });
 
-        // Volume animation on scroll
+        // 7. VOLUME AMPLIFICATION ON SCROLL
         const coneTargetOpacity = 0.07 + monolith * 0.12;
         spotlightCone.material.opacity = lerp(spotlightCone.material.opacity, coneTargetOpacity, 0.05);
         coreSpotlight.material.opacity = lerp(coreSpotlight.material.opacity, coneTargetOpacity * 1.5, 0.05);
@@ -176,9 +434,10 @@ function createComposer({ renderer, scene, camera, state }) {
 }
 
 function createSpotlightCone(color, opacity, bottomRadius) {
-    const coneGeo = new THREE.CylinderGeometry(0.04, bottomRadius, 24, 32, 1, true);
-    // Offset pivot so rotation origin is at the apex
-    coneGeo.translate(0, -12, 0); 
+    const coneGeo = new THREE.CylinderGeometry(0.02, bottomRadius, 24, 32, 1, true);
+    // Rotate to face down the negative Z-axis (camera's forward direction)
+    coneGeo.rotateX(Math.PI / 2);
+    coneGeo.translate(0, 0, -12); // extend forward from camera apex
     
     const coneMaterial = new THREE.MeshBasicMaterial({
         color: color,
@@ -190,59 +449,8 @@ function createSpotlightCone(color, opacity, bottomRadius) {
     });
     
     const mesh = new THREE.Mesh(coneGeo, coneMaterial);
-    mesh.position.set(0, 11, -5);
+    mesh.position.set(0, 0, 0); // centered at camera
     return mesh;
-}
-
-function createParticleNebula(scene) {
-    const particleCount = window.innerWidth < 768 ? 1200 : 2500;
-    const particleGeo = new THREE.BufferGeometry();
-    const positions = new Float32Array(particleCount * 3);
-    const initialPositions = [];
-    const phases = new Float32Array(particleCount);
-    const speeds = new Float32Array(particleCount);
-
-    for (let i = 0; i < particleCount; i++) {
-        // Distribute in a cosmic swirling nebula disc in the center core
-        const theta = Math.random() * Math.PI * 2;
-        const r = Math.pow(Math.random(), 1.6) * 9.5; 
-        const x = Math.cos(theta) * r;
-        const y = (Math.random() - 0.5) * 8.0;
-        const z = Math.sin(theta) * r - 2;
-
-        positions[i * 3] = x;
-        positions[i * 3 + 1] = y;
-        positions[i * 3 + 2] = z;
-
-        initialPositions.push(new THREE.Vector3(x, y, z));
-        phases[i] = Math.random() * Math.PI * 2;
-        speeds[i] = 0.45 + Math.random() * 0.85;
-    }
-
-    particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-    // Dynamic procedural anti-aliased glowing dot texture
-    const texture = createCircleTexture();
-
-    const particleMaterial = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.13,
-        transparent: true,
-        opacity: 0.72,
-        map: texture,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-    });
-
-    const particleSystem = new THREE.Points(particleGeo, particleMaterial);
-    scene.add(particleSystem);
-
-    return {
-        system: particleSystem,
-        initialPositions,
-        phases,
-        speeds
-    };
 }
 
 function createCircleTexture() {
@@ -259,53 +467,10 @@ function createCircleTexture() {
     return new THREE.CanvasTexture(canvas);
 }
 
-function updateParticles(particles, seconds, pointerAtDepth, state) {
-    const system = particles.system;
-    const posAttr = system.geometry.attributes.position;
-    const count = posAttr.count;
-
-    for (let i = 0; i < count; i++) {
-        const i3 = i * 3;
-        const initial = particles.initialPositions[i];
-        const phase = particles.phases[i];
-        const speed = particles.speeds[i];
-
-        // Swirling vortex mathematics around the volumetric shaft
-        const timeFactor = seconds * 0.12 * speed;
-        const r = Math.sqrt(initial.x * initial.x + initial.z * initial.z);
-        const theta = Math.atan2(initial.z, initial.x) + timeFactor;
-
-        let targetX = Math.cos(theta) * r;
-        let targetY = initial.y + Math.sin(seconds * 0.35 + phase) * 0.45;
-        let targetZ = Math.sin(theta) * r;
-
-        // Pointer dynamic kinetic swirl
-        if (state.pointer.active && !state.reducedMotion) {
-            const dx = posAttr.array[i3] - pointerAtDepth.x;
-            const dy = posAttr.array[i3 + 1] - pointerAtDepth.y;
-            const dz = posAttr.array[i3 + 2] - pointerAtDepth.z;
-            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            
-            if (dist < 4.8) {
-                const force = (4.8 - dist) * 0.08 * state.currentShapeSpeed;
-                targetX += dx * force;
-                targetY += dy * force;
-                targetZ += dz * force;
-            }
-        }
-
-        posAttr.array[i3] = lerp(posAttr.array[i3], targetX, 0.045);
-        posAttr.array[i3 + 1] = lerp(posAttr.array[i3 + 1], targetY, 0.045);
-        posAttr.array[i3 + 2] = lerp(posAttr.array[i3 + 2], targetZ, 0.045);
-    }
-    posAttr.needsUpdate = true;
-}
-
-function createGlassShards(scene) {
+function createGlassShards(scene, splinePath, particleCount, particleFrames) {
     const octahedronGeo = new THREE.OctahedronGeometry(1.2, 0);
     const torusKnotGeo = new THREE.TorusKnotGeometry(0.64, 0.18, 64, 8);
 
-    // Dark and clear crystal physical transmission materials (zero ambient light dependencies)
     const clearDiamondMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         roughness: 0.02,
@@ -357,24 +522,29 @@ function createGlassShards(scene) {
         const geometry = i % 2 === 0 ? octahedronGeo : torusKnotGeo;
         const mesh = new THREE.Mesh(geometry, materials[i % materials.length]);
 
-        const home = new THREE.Vector3(
-            (Math.random() - 0.5) * 22,
-            (Math.random() - 0.5) * 16,
-            (Math.random() - 0.5) * 8 - 4
-        );
-        const angle = (i / count) * Math.PI * 2;
-        const radius = 2.4 + (i % 4) * 0.35;
-        const monolith = new THREE.Vector3(
-            Math.cos(angle) * radius,
-            (i - count / 2) * 0.42,
-            Math.sin(angle) * radius - 4
+        // Distribute shards uniformly along spline (0.06 to 0.94)
+        const t = 0.06 + (i / count) * 0.88;
+        const pos = splinePath.getPointAt(t);
+        const frameIdx = Math.floor(t * (particleCount - 1));
+        
+        const normal = particleFrames.normals[frameIdx] || new THREE.Vector3(0, 1, 0);
+        const binormal = particleFrames.binormals[frameIdx] || new THREE.Vector3(1, 0, 0);
+
+        const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+        const radius = 1.6 + Math.random() * 1.4;
+        
+        const home = pos.clone().add(
+            normal.clone().multiplyScalar(Math.cos(angle) * radius)
+        ).add(
+            binormal.clone().multiplyScalar(Math.sin(angle) * radius)
         );
 
         mesh.position.copy(home);
         mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        
         mesh.userData = {
-            home,
-            monolith,
+            t,
+            home: home.clone(),
             velocity: new THREE.Vector3(),
             rotateVel: new THREE.Vector3(
                 (Math.random() - 0.5) * 0.008,
@@ -391,14 +561,18 @@ function createGlassShards(scene) {
     return shards;
 }
 
-function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, state }) {
-    const target = shard.userData.home.clone().lerp(shard.userData.monolith, monolith);
-    const drift = Math.sin(seconds * 0.38 + shard.userData.phase) * (1 - monolith) * 0.22;
-
+function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state }) {
+    const distToCam = Math.abs(shard.position.z - camera.position.z);
+    
+    // Smooth magnetic pull back to designated floating home
+    const target = shard.userData.home.clone();
+    const drift = Math.sin(seconds * 0.38 + shard.userData.phase) * (1.0 - monolith) * 0.18;
     target.y += drift;
-    shard.userData.velocity.add(target.sub(shard.position).multiplyScalar(0.004 + monolith * 0.006));
+    
+    shard.userData.velocity.add(target.sub(shard.position).multiplyScalar(0.005));
 
-    if (state.pointer.active && !state.reducedMotion) {
+    // Pointer kinetic reaction - only calculated if shard is close to camera
+    if (distToCam < 15 && state.pointer.active && !state.reducedMotion) {
         const shardPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -shard.position.z);
         raycaster.ray.intersectPlane(shardPlane, pointerAtDepth);
 
@@ -408,14 +582,14 @@ function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDept
         const influence = state.focusCount > 0 ? 1.6 : 3.8;
 
         if (distance < influence && distance > 0.001) {
-            const force = (influence - distance) * 0.008 * state.currentShapeSpeed;
+            const force = (influence - distance) * 0.012 * state.currentShapeSpeed;
             shard.userData.velocity.x += dx * force;
             shard.userData.velocity.y += dy * force;
         }
     }
 
     shard.position.add(shard.userData.velocity);
-    shard.userData.velocity.multiplyScalar(0.91);
+    shard.userData.velocity.multiplyScalar(0.9);
 
     const speed = state.currentShapeSpeed * (0.55 + (index % 4) * 0.05);
     shard.rotation.x += shard.userData.rotateVel.x * speed;
