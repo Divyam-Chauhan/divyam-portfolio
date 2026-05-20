@@ -8,7 +8,7 @@ import { lerp, smoothState } from './state.js';
 
 export function createSceneController(state) {
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x020204, 0.024); // Atmospheric velvet deep fog
+    scene.fog = new THREE.FogExp2(0x020204, 0.026); // Moody charcoal-velvet museum fog
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
     
@@ -26,7 +26,7 @@ export function createSceneController(state) {
     document.body.prepend(renderer.domElement);
 
     // Deep velvet darkness - almost no ambient washing
-    const ambientLight = new THREE.AmbientLight(0x050714, 0.04);
+    const ambientLight = new THREE.AmbientLight(0x05060d, 0.03);
     scene.add(ambientLight);
 
     // 1. Define winding 3D Spline Path
@@ -49,6 +49,7 @@ export function createSceneController(state) {
     camera.position.copy(initCamPos);
 
     // 2. Generate Twisting Octagonal Collars (Rings) along Spline
+    // Muted, high-end metallic platinum/charcoal wireframes
     const collars = [];
     const collarCount = 120;
     const collarGroup = new THREE.Group();
@@ -59,27 +60,23 @@ export function createSceneController(state) {
         const pos = splinePath.getPointAt(t);
         const tangent = splinePath.getTangentAt(t);
 
-        // Architectural octagonal loop using TorusGeometry(radius, tube, radialSegments, tubularSegments)
+        // Architectural octagonal loop
         const size = 3.6 + Math.sin(t * Math.PI * 6.5) * 0.35;
-        const geo = new THREE.TorusGeometry(size, 0.038, 8, 8); 
+        const geo = new THREE.TorusGeometry(size, 0.032, 8, 8); 
 
-        // Luxury color gradient sweep: Cyan -> Indigo -> Rose -> Amber Gold
+        // Monochromatic, highly desaturated premium metallic gradient (Silver -> Platinum -> Soft Gold Accent)
         let colorHex;
-        if (t < 0.28) {
-            colorHex = new THREE.Color().lerpColors(new THREE.Color(0x0df5d6), new THREE.Color(0x00c3ff), t / 0.28);
-        } else if (t < 0.58) {
-            colorHex = new THREE.Color().lerpColors(new THREE.Color(0x00c3ff), new THREE.Color(0x5e5ce6), (t - 0.28) / 0.3);
-        } else if (t < 0.84) {
-            colorHex = new THREE.Color().lerpColors(new THREE.Color(0x5e5ce6), new THREE.Color(0xff2a85), (t - 0.58) / 0.26);
+        if (t < 0.5) {
+            colorHex = new THREE.Color().lerpColors(new THREE.Color(0x8a929e), new THREE.Color(0x2c3e50), t / 0.5);
         } else {
-            colorHex = new THREE.Color().lerpColors(new THREE.Color(0xff2a85), new THREE.Color(0xe2c98a), (t - 0.84) / 0.16);
+            colorHex = new THREE.Color().lerpColors(new THREE.Color(0x2c3e50), new THREE.Color(0xdfd5c6), (t - 0.5) / 0.5);
         }
 
         const mat = new THREE.MeshBasicMaterial({
             color: colorHex,
             wireframe: true,
             transparent: true,
-            opacity: 0.55,
+            opacity: 0.22, // Faint architectural outlines
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
@@ -94,15 +91,15 @@ export function createSceneController(state) {
 
         mesh.userData = {
             t,
-            rotSpeed: (0.18 + Math.random() * 0.25) * (Math.random() < 0.5 ? 1 : -1),
-            baseOpacity: 0.16 + (1 - t) * 0.38
+            rotSpeed: (0.12 + Math.random() * 0.18) * (Math.random() < 0.5 ? 1 : -1),
+            baseOpacity: 0.08 + (1 - t) * 0.22
         };
 
         collarGroup.add(mesh);
         collars.push(mesh);
     }
 
-    // 3. Generate Flowing Dual Helix Star Trails wrapping around Spline
+    // 3. Generate Flowing Dual Helix Star Trails wrapping around Spline (Classy Silver Dust)
     const helixCount = 1000;
     const helix1Geo = new THREE.BufferGeometry();
     const helix2Geo = new THREE.BufferGeometry();
@@ -131,19 +128,19 @@ export function createSceneController(state) {
     
     const texture = createCircleTexture();
     const helix1Mat = new THREE.PointsMaterial({
-        color: 0x0df5d6,
-        size: 0.11,
+        color: 0xeaeaea, // Elegant Platinum White
+        size: 0.08,      // Tiny luxury star trails
         transparent: true,
-        opacity: 0.75,
+        opacity: 0.45,
         map: texture,
         blending: THREE.AdditiveBlending,
         depthWrite: false
     });
     const helix2Mat = new THREE.PointsMaterial({
-        color: 0xff2a85,
-        size: 0.11,
+        color: 0xd2c6b4, // Faint desaturated Champagne Gold
+        size: 0.07,
         transparent: true,
-        opacity: 0.75,
+        opacity: 0.40,
         map: texture,
         blending: THREE.AdditiveBlending,
         depthWrite: false
@@ -154,7 +151,7 @@ export function createSceneController(state) {
     scene.add(helix1System);
     scene.add(helix2System);
 
-    // 4. Generate Particle Nebula distributed along Spline
+    // 4. Generate Particle Nebula distributed along Spline (Delicate Diamond Dust)
     const particleCount = window.innerWidth < 768 ? 1200 : 2500;
     const particleGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
@@ -196,9 +193,9 @@ export function createSceneController(state) {
     
     const particleMaterial = new THREE.PointsMaterial({
         color: 0xffffff,
-        size: 0.12,
+        size: 0.10,
         transparent: true,
-        opacity: 0.65,
+        opacity: 0.55,
         map: texture,
         blending: THREE.AdditiveBlending,
         depthWrite: false
@@ -210,32 +207,48 @@ export function createSceneController(state) {
     // 5. Generate Shards along Spline
     const shards = createGlassShards(scene, splinePath, particleCount, particleFrames);
 
-    // 6. Generate 4 Stationary Colored Light Beacons for stunning glass refractions
+    // 6. Generate 4 Stationary Faint Light Beacons (Classy Monochrome & Warm tones)
     const beacons = [
-        { color: 0x0df5d6, t: 0.18, intensity: 10 },
-        { color: 0x5e5ce6, t: 0.45, intensity: 12 },
-        { color: 0xff2a85, t: 0.72, intensity: 14 },
-        { color: 0xe2c98a, t: 0.92, intensity: 12 }
+        { color: 0xffffff, t: 0.18, intensity: 5 },  // Faint Silver
+        { color: 0xe3e6ec, t: 0.45, intensity: 5 },  // Faint Cool Gray
+        { color: 0xdfd3b6, t: 0.72, intensity: 6 },  // Faint Champagne Gold
+        { color: 0xcfc8bb, t: 0.92, intensity: 5 }   // Faint Warm Slate
     ];
     const beaconLights = [];
     beacons.forEach(b => {
         const pos = splinePath.getPointAt(b.t);
-        const light = new THREE.PointLight(b.color, b.intensity, 22);
+        const light = new THREE.PointLight(b.color, b.intensity, 20);
         light.position.copy(pos);
         scene.add(light);
         beaconLights.push(light);
     });
 
-    // 7. Mount Volumetric spotlight cones and white headlight directly to Camera
-    const spotlightCone = createSpotlightCone(0x0df5d6, 0.07, 7.0);
+    // 7. Mount Volumetric spotlight cones directly to Camera (Soft Silver & Champagne Mist)
+    const spotlightCone = createSpotlightCone(0xdfd3b6, 0.025, 6.0); // Super faint champagne
     camera.add(spotlightCone);
 
-    const coreSpotlight = createSpotlightCone(0xffffff, 0.12, 3.2);
+    const coreSpotlight = createSpotlightCone(0xffffff, 0.04, 3.0); // Extremely subtle white
     camera.add(coreSpotlight);
 
-    const cameraHeadlight = new THREE.PointLight(0xffffff, 4.0, 16);
+    const cameraHeadlight = new THREE.PointLight(0xffffff, 1.6, 15); // Classy, desaturated headlight fill
     cameraHeadlight.position.set(0, 0, 0);
     camera.add(cameraHeadlight);
+
+    // 8. Slate/Steel and Champagne Rim Lights (Desaturated luxury tones)
+    const blueRimLight = new THREE.PointLight(0x8fa1b3, state.blueLightTarget, 40); // Faint Slate Blue
+    blueRimLight.position.set(-8, -4, 4);
+    scene.add(blueRimLight);
+
+    const warmRimLight = new THREE.PointLight(0xdfd3b6, 0, 45); // Faint Champagne Gold
+    warmRimLight.position.set(8, -4, -4);
+    scene.add(warmRimLight);
+
+    // Dynamic mouse spotlights moving inside the dust nebula
+    const cursorLightCyan = new THREE.PointLight(0xffffff, 1.8, 18); // Faint White
+    scene.add(cursorLightCyan);
+
+    const cursorLightMagenta = new THREE.PointLight(0xdfd3b6, 1.5, 18); // Faint Champagne
+    scene.add(cursorLightMagenta);
 
     // Add camera to scene so parent-child transforms compile correctly
     scene.add(camera);
@@ -286,9 +299,31 @@ export function createSceneController(state) {
         coreSpotlight.rotation.y = spotlightCone.rotation.y;
         coreSpotlight.rotation.x = spotlightCone.rotation.x;
 
+        blueRimLight.intensity = lerp(blueRimLight.intensity, state.blueLightTarget * 0.8, 0.04);
+        warmRimLight.intensity = lerp(warmRimLight.intensity, state.warmLightTarget * 0.8, 0.05);
+
         // Project mouse coordinate to Z-plane for particle swarm reactions
         const particlePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 2); // z = -2 plane relative to camera
         raycaster.ray.intersectPlane(particlePlane, pointerAtDepth);
+
+        // Track spotlights dynamically to follow pointer movement
+        if (state.pointer.active) {
+            const lightTargetX = state.pointer.x * 12;
+            const lightTargetY = state.pointer.y * 9;
+            
+            cursorLightCyan.position.x = lerp(cursorLightCyan.position.x, lightTargetX, 0.06);
+            cursorLightCyan.position.y = lerp(cursorLightCyan.position.y, lightTargetY, 0.06);
+            cursorLightCyan.position.z = 2.5;
+            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 2.0, 0.06);
+
+            cursorLightMagenta.position.x = lerp(cursorLightMagenta.position.x, -lightTargetX * 0.8, 0.06);
+            cursorLightMagenta.position.y = lerp(cursorLightMagenta.position.y, -lightTargetY * 0.8, 0.06);
+            cursorLightMagenta.position.z = 1.5;
+            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 1.6, 0.06);
+        } else {
+            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 0, 0.05);
+            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 0, 0.05);
+        }
 
         // 3. SPIN & SCALE GEOMETRIC TUNNEL COLLARS based on camera proximity
         collars.forEach((collar) => {
@@ -389,7 +424,7 @@ export function createSceneController(state) {
         });
 
         // 7. VOLUME AMPLIFICATION ON SCROLL
-        const coneTargetOpacity = 0.07 + monolith * 0.12;
+        const coneTargetOpacity = 0.025 + monolith * 0.04;
         spotlightCone.material.opacity = lerp(spotlightCone.material.opacity, coneTargetOpacity, 0.05);
         coreSpotlight.material.opacity = lerp(coreSpotlight.material.opacity, coneTargetOpacity * 1.5, 0.05);
 
@@ -414,9 +449,9 @@ function createComposer({ renderer, scene, camera, state }) {
     const renderPass = new RenderPass(scene, camera);
     const bloom = new UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
-        state.reducedMotion ? 0.08 : 0.42,
+        state.reducedMotion ? 0.04 : 0.28, // Desaturated, low-intensity subtle glow
         0.5,
-        0.88
+        0.92
     );
     const bokeh = new BokehPass(scene, camera, {
         focus: 8.0,
@@ -471,6 +506,7 @@ function createGlassShards(scene, splinePath, particleCount, particleFrames) {
     const octahedronGeo = new THREE.OctahedronGeometry(1.2, 0);
     const torusKnotGeo = new THREE.TorusKnotGeometry(0.64, 0.18, 64, 8);
 
+    // Strict premium, monochromatic, desaturated materials
     const clearDiamondMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         roughness: 0.02,
@@ -494,27 +530,29 @@ function createGlassShards(scene, splinePath, particleCount, particleFrames) {
         clearcoatRoughness: 0.05
     });
 
-    const tealGlassMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0x0df5d6,
-        roughness: 0.06,
-        metalness: 0.1,
-        transmission: 0.88,
-        ior: 1.54,
+    const frostedCrystalMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xe5e9f0,
+        roughness: 0.28, // Elegant Frosted look
+        metalness: 0.08,
+        transmission: 0.92,
+        ior: 1.48,
+        thickness: 1.8,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
+    });
+
+    const champagneFrostedMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xebdcb9, // Super subtle desaturated champagne
+        roughness: 0.08,
+        metalness: 0.12,
+        transmission: 0.94,
+        ior: 1.58,
         thickness: 2.0,
-        clearcoat: 1.0
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.05
     });
 
-    const amberGlassMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xe2c98a,
-        roughness: 0.05,
-        metalness: 0.15,
-        transmission: 0.86,
-        ior: 1.56,
-        thickness: 1.6,
-        clearcoat: 1.0
-    });
-
-    const materials = [clearDiamondMaterial, obsidianGlassMaterial, tealGlassMaterial, amberGlassMaterial];
+    const materials = [clearDiamondMaterial, obsidianGlassMaterial, frostedCrystalMaterial, champagneFrostedMaterial];
     const count = 14; 
     const shards = [];
 
@@ -598,8 +636,8 @@ function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDept
 }
 
 function updatePostProcessing(composer, state, monolith) {
-    composer.bloom.strength = lerp(composer.bloom.strength, 0.38 + monolith * 0.22, 0.05);
-    composer.bloom.radius = lerp(composer.bloom.radius, 0.5 + monolith * 0.18, 0.05);
+    composer.bloom.strength = lerp(composer.bloom.strength, 0.22 + monolith * 0.12, 0.05); // Elegant, desaturated glow
+    composer.bloom.radius = lerp(composer.bloom.radius, 0.5 + monolith * 0.12, 0.05);
 
     if (composer.bokeh.uniforms?.maxblur) {
         composer.bokeh.uniforms.maxblur.value = state.currentBlur;
