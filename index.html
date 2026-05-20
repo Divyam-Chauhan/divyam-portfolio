@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Divyam Chauhan's Portfolio</title>
+    <link rel="stylesheet" href="https://unpkg.com/lenis@1.3.23/dist/lenis.css">
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -22,15 +23,12 @@
     </div>
 
     <div class="content-section">
-        <div
-            style="font-size: 1rem; color: #444; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 40px; border-bottom: 1px solid #222; padding-bottom: 20px;">
-            Selected Work
-        </div>
+        <div class="section-kicker">Selected Work</div>
 
         <div class="project-grid">
             <div class="card span-8">
                 <div class="card-visual">
-                    <span class="card-label">System Architecture • Full Stack</span>
+                    <span class="card-label">System Architecture &bull; Full Stack</span>
                     <h2 class="card-title">The Opportunity Bridge</h2>
                     <p class="card-desc">
                         A tri-node crowdfunding architecture that enforces a "Verification Layer" before capital flows.
@@ -39,11 +37,11 @@
 
                     <div class="action-row">
                         <a href="https://github.com/Dihadi-mantri/The-Opportunity-Bridge" target="_blank"
-                            class="link-btn">
+                            rel="noopener noreferrer" class="link-btn">
                             View Code &lt;/&gt;
                         </a>
                     </div>
-                    <div style="margin-top: auto;">
+                    <div class="tech-stack">
                         <span class="tech-pill">Python / Flask</span>
                         <span class="tech-pill">SQLAlchemy</span>
                         <span class="tech-pill">Jinja2</span>
@@ -55,19 +53,18 @@
                 <div class="card-visual">
                     <span class="card-label">Status</span>
                     <h2 class="card-title">Deployed &<br>Verified.</h2>
-                    <p class="card-desc" style="font-size: 0.9rem;">Serving 3 user roles securely.</p>
+                    <p class="card-desc card-desc--compact">Serving 3 user roles securely.</p>
                 </div>
             </div>
 
             <div class="card span-8">
                 <div class="card-visual">
-                    <span class="card-label">AI/ML • Public Health Infrastructure</span>
+                    <span class="card-label">AI/ML &bull; Public Health Infrastructure</span>
                     <h2 class="card-title">HealthSathi</h2>
 
                     <p class="card-desc">
                         A "Digital First Responder" for rural India on WhatsApp. It uses a RAG pipeline to map
-                        vernacular
-                        symptoms (Hindi/Bhojpuri) to Government Health Schemes.
+                        vernacular symptoms (Hindi/Bhojpuri) to Government Health Schemes.
                         <br><br>
                         <strong>The Engine:</strong> Features a "Context-Aware Personality Switch" (Gemma 27B) that
                         dynamically toggles between empathetic small talk and strict medical triage protocols to prevent
@@ -75,10 +72,12 @@
                     </p>
 
                     <div class="action-row">
-                        <a href="https://huggingface.co/spaces/dopami9/Healthsathi" target="_blank" class="link-btn">
-                            Live Demo ↗
+                        <a href="https://huggingface.co/spaces/dopami9/Healthsathi" target="_blank"
+                            rel="noopener noreferrer" class="link-btn">
+                            Live Demo &nearr;
                         </a>
-                        <a href="https://github.com/Dihadi-mantri/Healthsathi" target="_blank" class="link-btn">
+                        <a href="https://github.com/Dihadi-mantri/Healthsathi" target="_blank"
+                            rel="noopener noreferrer" class="link-btn">
                             View Code &lt;/&gt;
                         </a>
                     </div>
@@ -96,30 +95,28 @@
                 <div class="card-visual">
                     <span class="card-label">Status</span>
                     <h2 class="card-title">Deployed &<br>Verified.</h2>
-                    <p class="card-desc" style="font-size: 0.9rem;">Serving people across WhatsApp & SMS<br>even on
-                        feature
+                    <p class="card-desc card-desc--compact">Serving people across WhatsApp & SMS<br>even on feature
                         phones.</p>
                 </div>
             </div>
 
             <div class="card span-6">
                 <div class="card-visual">
-                    <span class="card-label">Generative AI • Persona Engineering</span>
+                    <span class="card-label">Generative AI &bull; Persona Engineering</span>
                     <h2 class="card-title">Devta</h2>
 
                     <p class="card-desc">
                         A personality-based AI that breaks the "polite assistant" mold. It mimics a chaotic 20-year-old
-                        CS
-                        major with a "God Complex" and a self-declared IQ of 1000.
+                        CS major with a "God Complex" and a self-declared IQ of 1000.
                         <br><br>
-                        <strong>The Logic:</strong> Enforces a strict "Stand on Business" prompt constraint—rejecting
-                        long,
-                        boring paragraphs in favor of punchy, high-energy roasts and "top-tier" wit.
+                        <strong>The Logic:</strong> Enforces a strict "Stand on Business" prompt constraint - rejecting
+                        long, boring paragraphs in favor of punchy, high-energy roasts and "top-tier" wit.
                     </p>
 
                     <div class="action-row">
-                        <a href="https://huggingface.co/spaces/dopami9/DEVTA" target="_blank" class="link-btn">
-                            Chat with God ↗
+                        <a href="https://huggingface.co/spaces/dopami9/DEVTA" target="_blank"
+                            rel="noopener noreferrer" class="link-btn">
+                            Chat with God &nearr;
                         </a>
                     </div>
 
@@ -153,24 +150,32 @@
         </div>
 
         <div class="social-row">
-            <a href="https://www.linkedin.com/in/divyamchauhan2/" target="_blank" class="social-link">LinkedIn</a>
-            <a href="https://github.com/Dihadi-mantri" target="_blank" class="social-link">GitHub</a>
-            <a href="https://discordapp.com/users/dmix_" target="_blank" class="social-link"
+            <a href="https://www.linkedin.com/in/divyamchauhan2/" target="_blank" rel="noopener noreferrer"
+                class="social-link">LinkedIn</a>
+            <a href="https://github.com/Dihadi-mantri" target="_blank" rel="noopener noreferrer"
+                class="social-link">GitHub</a>
+            <a href="https://discordapp.com/users/dmix_" target="_blank" rel="noopener noreferrer" class="social-link"
                 title="User: dmix_">Discord</a>
         </div>
 
-        <div style="margin-top: 80px; color: #444; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px;">
-            © 2026 Divyam Chauhan
-        </div>
+        <div class="copyright">&copy; 2026 Divyam Chauhan</div>
+    </div>
+
+    <div class="scroll-progress" aria-hidden="true">
+        <div class="scroll-progress__bar"></div>
     </div>
 
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>
+    <script src="https://unpkg.com/lenis@1.3.23/dist/lenis.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js"></script>
     <script type="module" src="script.js"></script>
 </body>
 
