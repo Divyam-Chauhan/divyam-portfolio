@@ -74,8 +74,9 @@ function createCssMotionController(state) {
             }
             motion.frames += 1;
 
-            const targetRate = state.reducedMotion ? 0.08 : (state.pointer.down ? 0.12 : 1);
-            motion.rate = lerp(motion.rate, targetRate, 0.08);
+            const targetRate = state.reducedMotion ? 0.08 : (state.pointer.down ? 0.08 : 1);
+            const rateEase = targetRate < motion.rate ? 0.18 : 0.08;
+            motion.rate = lerp(motion.rate, targetRate, rateEase);
 
             motion.animations.forEach((animation) => {
                 animation.playbackRate = motion.rate;

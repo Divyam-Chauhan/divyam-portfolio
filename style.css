@@ -1161,31 +1161,31 @@ a {
 }
 
 body.is-pointer-held:not(.has-motion-governor) .scroll-indicator {
-    animation-duration: 20s;
+    animation-duration: 30s;
 }
 
 body.is-pointer-held:not(.has-motion-governor) .identity-orbit--one {
-    animation-duration: 150s;
+    animation-duration: 225s;
 }
 
 body.is-pointer-held:not(.has-motion-governor) .identity-orbit--two {
-    animation-duration: 200s;
+    animation-duration: 300s;
 }
 
 body.is-pointer-held:not(.has-motion-governor) .identity-orbit--three {
-    animation-duration: 117s;
+    animation-duration: 175s;
 }
 
 body.is-pointer-held:not(.has-motion-governor) .map-node {
-    animation-duration: 23s;
+    animation-duration: 35s;
 }
 
 body.is-pointer-held:not(.has-motion-governor) .status-dot {
-    animation-duration: 17s;
+    animation-duration: 25s;
 }
 
 body.is-pointer-held:not(.has-motion-governor) .pulse-ring {
-    animation-duration: 20s;
+    animation-duration: 30s;
 }
 
 a:focus-visible,

@@ -274,14 +274,20 @@ export function createSceneController(state) {
         const delta = lastTime === 0 ? 0.016 : (time - lastTime) * 0.001;
         lastTime = time;
 
+        const isHoldingSlow = state.pointer.down && !state.reducedMotion;
         const targetBackgroundSpeed = state.reducedMotion
             ? helixReducedMotionSpeed
-            : (state.pointer.down ? 0.12 : 1);
-        currentBackgroundSpeed = lerp(currentBackgroundSpeed, targetBackgroundSpeed, 0.06);
+            : (isHoldingSlow ? 0.08 : 1);
+        const backgroundSpeedEase = targetBackgroundSpeed < currentBackgroundSpeed ? 0.18 : 0.06;
+        currentBackgroundSpeed = lerp(currentBackgroundSpeed, targetBackgroundSpeed, backgroundSpeedEase);
         slowedSceneTime += delta * currentBackgroundSpeed;
 
         const seconds = slowedSceneTime;
-        const backgroundInteractionSpeed = Math.max(currentBackgroundSpeed, 0.24);
+        const backgroundInteractionSpeed = Math.max(currentBackgroundSpeed, 0.08);
+        const sceneResponseSpeed = isHoldingSlow ? Math.max(currentBackgroundSpeed, 0.08) : 1;
+        const cameraResponseAmount = 0.045 * sceneResponseSpeed;
+        const chapterResponseAmount = 0.035 * sceneResponseSpeed;
+        const particleResponseAmount = 0.045 * sceneResponseSpeed;
         const compactScene = window.innerWidth < 768 || state.reducedMotion;
         const hero = chapterPresence(state.heroProgress);
         const identity = chapterPresence(state.identityProgress);
@@ -302,9 +308,9 @@ export function createSceneController(state) {
         // 1. DOUBLE-LERP CAMERA POSITION & FLIGHT PATH Sync
         const targetCamPos = splinePath.getPointAt(state.scrollProgress);
 
-        camera.position.x = lerp(camera.position.x, targetCamPos.x + state.pointer.x * 0.35, 0.045);
-        camera.position.y = lerp(camera.position.y, targetCamPos.y + state.pointer.y * 0.22, 0.045);
-        camera.position.z = lerp(camera.position.z, targetCamPos.z, 0.045);
+        camera.position.x = lerp(camera.position.x, targetCamPos.x + state.pointer.x * 0.35, cameraResponseAmount);
+        camera.position.y = lerp(camera.position.y, targetCamPos.y + state.pointer.y * 0.22, cameraResponseAmount);
+        camera.position.z = lerp(camera.position.z, targetCamPos.z, cameraResponseAmount);
 
         // Smoothly interpolate the look-at point slightly ahead
         const lookAheadT = Math.min(state.scrollProgress + 0.038, 0.995);
@@ -313,7 +319,7 @@ export function createSceneController(state) {
         if (!currentLookAt) {
             currentLookAt = new THREE.Vector3().copy(targetLookAt);
         } else {
-            currentLookAt.lerp(targetLookAt, 0.045);
+            currentLookAt.lerp(targetLookAt, cameraResponseAmount);
         }
 
         // Add subtle mouse look-around offset
@@ -324,8 +330,8 @@ export function createSceneController(state) {
         // Tilt the headlight slightly in response to mouse movement
         const coneSwayX = state.pointer.x * 0.22;
         const coneSwayY = state.pointer.y * 0.18;
-        spotlightCone.rotation.y = lerp(spotlightCone.rotation.y, -coneSwayX, 0.045);
-        spotlightCone.rotation.x = lerp(spotlightCone.rotation.x, coneSwayY, 0.045);
+        spotlightCone.rotation.y = lerp(spotlightCone.rotation.y, -coneSwayX, cameraResponseAmount);
+        spotlightCone.rotation.x = lerp(spotlightCone.rotation.x, coneSwayY, cameraResponseAmount);
         coreSpotlight.rotation.y = spotlightCone.rotation.y;
         coreSpotlight.rotation.x = spotlightCone.rotation.x;
 
@@ -357,8 +363,8 @@ export function createSceneController(state) {
         }
 
         // 3. SPIN & SCALE GEOMETRIC TUNNEL COLLARS based on camera proximity
-        collarGroup.rotation.z = lerp(collarGroup.rotation.z, identity * 0.34 - lab * 0.18 + footer * 0.12, 0.035);
-        collarGroup.rotation.x = lerp(collarGroup.rotation.x, capabilities * 0.08 - identity * 0.06, 0.035);
+        collarGroup.rotation.z = lerp(collarGroup.rotation.z, identity * 0.34 - lab * 0.18 + footer * 0.12, chapterResponseAmount);
+        collarGroup.rotation.x = lerp(collarGroup.rotation.x, capabilities * 0.08 - identity * 0.06, chapterResponseAmount);
 
         collars.forEach((collar) => {
             collar.rotateZ(collar.userData.rotSpeed * 0.008 * (1 + experimentalEnergy) * currentBackgroundSpeed);
@@ -467,9 +473,9 @@ export function createSceneController(state) {
                 }
             }
 
-            posAttr.array[i3] = lerp(posAttr.array[i3], targetX, 0.045);
-            posAttr.array[i3 + 1] = lerp(posAttr.array[i3 + 1], targetY, 0.045);
-            posAttr.array[i3 + 2] = lerp(posAttr.array[i3 + 2], targetZ, 0.045);
+            posAttr.array[i3] = lerp(posAttr.array[i3], targetX, particleResponseAmount);
+            posAttr.array[i3 + 1] = lerp(posAttr.array[i3 + 1], targetY, particleResponseAmount);
+            posAttr.array[i3 + 2] = lerp(posAttr.array[i3 + 2], targetZ, particleResponseAmount);
         }
         posAttr.needsUpdate = true;
 
@@ -488,7 +494,8 @@ export function createSceneController(state) {
                 archive,
                 footer,
                 backgroundSpeed: currentBackgroundSpeed,
-                interactionSpeed: backgroundInteractionSpeed
+                interactionSpeed: backgroundInteractionSpeed,
+                isHoldingSlow
             });
         });
 
@@ -668,8 +675,10 @@ function createGlassShards(scene, splinePath, particleCount, particleFrames, sta
     return shards;
 }
 
-function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state, lab, archive, footer, backgroundSpeed, interactionSpeed }) {
+function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state, lab, archive, footer, backgroundSpeed, interactionSpeed, isHoldingSlow }) {
     const distToCam = Math.abs(shard.position.z - camera.position.z);
+    const shardMotionSpeed = isHoldingSlow ? backgroundSpeed * backgroundSpeed : backgroundSpeed;
+    const velocityDamping = isHoldingSlow ? 0.68 : 0.9;
     
     // Smooth magnetic pull back to designated floating home
     const target = shard.userData.home.clone();
@@ -677,7 +686,7 @@ function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDept
     target.y += drift;
     target.x += Math.sin(seconds * 0.42 + shard.userData.phase) * lab * 0.16;
     
-    shard.userData.velocity.add(target.sub(shard.position).multiplyScalar(0.005 * backgroundSpeed));
+    shard.userData.velocity.add(target.sub(shard.position).multiplyScalar(0.005 * shardMotionSpeed));
 
     // Pointer kinetic reaction - only calculated if shard is close to camera
     if (distToCam < 15 && state.pointer.active && !state.reducedMotion) {
@@ -696,13 +705,13 @@ function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDept
         }
     }
 
-    shard.position.addScaledVector(shard.userData.velocity, backgroundSpeed);
-    shard.userData.velocity.multiplyScalar(0.9);
+    shard.position.addScaledVector(shard.userData.velocity, shardMotionSpeed);
+    shard.userData.velocity.multiplyScalar(velocityDamping);
 
     const targetScale = clamp(1 + lab * 0.22 - archive * 0.1 + footer * 0.14, 0.78, 1.38);
     shard.scale.setScalar(lerp(shard.scale.x, targetScale, 0.04));
 
-    const speed = state.currentShapeSpeed * backgroundSpeed * (0.55 + (index % 4) * 0.05) * (1 + lab * 1.7 - archive * 0.22);
+    const speed = state.currentShapeSpeed * shardMotionSpeed * (0.55 + (index % 4) * 0.05) * (1 + lab * 1.7 - archive * 0.22);
     shard.rotation.x += shard.userData.rotateVel.x * speed;
     shard.rotation.y += shard.userData.rotateVel.y * speed;
     shard.rotation.z += shard.userData.rotateVel.z * speed;
