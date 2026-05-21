@@ -258,20 +258,30 @@ export function createSceneController(state) {
     const pointer = new THREE.Vector2();
     const pointerAtDepth = new THREE.Vector3();
 
-    // Local look-at tracking and helix holding animation variables
+    // Local look-at tracking and shared background slowdown variables
     let currentLookAt = null;
     let lastTime = 0;
+    let slowedSceneTime = 0;
+    let currentBackgroundSpeed = state.reducedMotion ? 0.08 : 1;
     let helixPhaseAccumulator = 0;
     const helixNormalSpeed = 1.5;
-    const helixHoldSpeed = 0.12;
     const helixReducedMotionSpeed = 0.08;
-    let currentHelixSpeed = helixNormalSpeed;
     let currentHelixRadiusScale = 1.0;
 
     function update(time) {
         smoothState();
 
-        const seconds = time * 0.001;
+        const delta = lastTime === 0 ? 0.016 : (time - lastTime) * 0.001;
+        lastTime = time;
+
+        const targetBackgroundSpeed = state.reducedMotion
+            ? helixReducedMotionSpeed
+            : (state.pointer.down ? 0.12 : 1);
+        currentBackgroundSpeed = lerp(currentBackgroundSpeed, targetBackgroundSpeed, 0.06);
+        slowedSceneTime += delta * currentBackgroundSpeed;
+
+        const seconds = slowedSceneTime;
+        const backgroundInteractionSpeed = Math.max(currentBackgroundSpeed, 0.24);
         const compactScene = window.innerWidth < 768 || state.reducedMotion;
         const hero = chapterPresence(state.heroProgress);
         const identity = chapterPresence(state.identityProgress);
@@ -351,7 +361,7 @@ export function createSceneController(state) {
         collarGroup.rotation.x = lerp(collarGroup.rotation.x, capabilities * 0.08 - identity * 0.06, 0.035);
 
         collars.forEach((collar) => {
-            collar.rotateZ(collar.userData.rotSpeed * 0.008 * (1 + experimentalEnergy));
+            collar.rotateZ(collar.userData.rotSpeed * 0.008 * (1 + experimentalEnergy) * currentBackgroundSpeed);
 
             const distToCam = collar.position.distanceTo(camera.position);
             const chapterScale = 1 + capabilities * 0.2 + lab * 0.12 + footer * 0.18 - readabilityCalm * 0.08;
@@ -368,19 +378,11 @@ export function createSceneController(state) {
         });
 
         // 4. ANIMATE FLOWING DUAL HELIX TRAILS
-        // Slow the dotted helix while the primary pointer is held down.
-        const delta = lastTime === 0 ? 0.016 : (time - lastTime) * 0.001;
-        lastTime = time;
-
-        const targetHelixSpeed = state.reducedMotion
-            ? helixReducedMotionSpeed
-            : (state.pointer.down ? helixHoldSpeed : helixNormalSpeed);
-        currentHelixSpeed = lerp(currentHelixSpeed, targetHelixSpeed, 0.06);
-
+        // The helix uses the same slowed scene clock as the rest of the background.
         const targetRadiusScale = state.pointer.down && !state.reducedMotion ? 0.84 : 1.0;
         currentHelixRadiusScale = lerp(currentHelixRadiusScale, targetRadiusScale, 0.06);
 
-        helixPhaseAccumulator += delta * currentHelixSpeed;
+        helixPhaseAccumulator += delta * helixNormalSpeed * currentBackgroundSpeed;
 
         const helixOpacityScale = compactScene ? 0.42 : 1;
         const helixOpacityTarget = clamp(0.42 + hero * 0.2 + identity * 0.26 + capabilities * 0.14 + lab * 0.18 - readabilityCalm * 0.24 - finalThin * 0.32, 0.08, 0.82) * helixOpacityScale;
@@ -458,7 +460,7 @@ export function createSceneController(state) {
                 const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 
                 if (dist < 4.8) {
-                    const force = (4.8 - dist) * 0.08 * state.currentShapeSpeed;
+                    const force = (4.8 - dist) * 0.08 * state.currentShapeSpeed * backgroundInteractionSpeed;
                     targetX += dx * force;
                     targetY += dy * force;
                     targetZ += dz * force;
@@ -484,7 +486,9 @@ export function createSceneController(state) {
                 state,
                 lab,
                 archive,
-                footer
+                footer,
+                backgroundSpeed: currentBackgroundSpeed,
+                interactionSpeed: backgroundInteractionSpeed
             });
         });
 
@@ -664,7 +668,7 @@ function createGlassShards(scene, splinePath, particleCount, particleFrames, sta
     return shards;
 }
 
-function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state, lab, archive, footer }) {
+function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state, lab, archive, footer, backgroundSpeed, interactionSpeed }) {
     const distToCam = Math.abs(shard.position.z - camera.position.z);
     
     // Smooth magnetic pull back to designated floating home
@@ -673,7 +677,7 @@ function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDept
     target.y += drift;
     target.x += Math.sin(seconds * 0.42 + shard.userData.phase) * lab * 0.16;
     
-    shard.userData.velocity.add(target.sub(shard.position).multiplyScalar(0.005));
+    shard.userData.velocity.add(target.sub(shard.position).multiplyScalar(0.005 * backgroundSpeed));
 
     // Pointer kinetic reaction - only calculated if shard is close to camera
     if (distToCam < 15 && state.pointer.active && !state.reducedMotion) {
@@ -686,19 +690,19 @@ function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDept
         const influence = state.focusCount > 0 ? 1.6 : 3.8;
 
         if (distance < influence && distance > 0.001) {
-            const force = (influence - distance) * 0.012 * state.currentShapeSpeed;
+            const force = (influence - distance) * 0.012 * state.currentShapeSpeed * interactionSpeed;
             shard.userData.velocity.x += dx * force;
             shard.userData.velocity.y += dy * force;
         }
     }
 
-    shard.position.add(shard.userData.velocity);
+    shard.position.addScaledVector(shard.userData.velocity, backgroundSpeed);
     shard.userData.velocity.multiplyScalar(0.9);
 
     const targetScale = clamp(1 + lab * 0.22 - archive * 0.1 + footer * 0.14, 0.78, 1.38);
     shard.scale.setScalar(lerp(shard.scale.x, targetScale, 0.04));
 
-    const speed = state.currentShapeSpeed * (0.55 + (index % 4) * 0.05) * (1 + lab * 1.7 - archive * 0.22);
+    const speed = state.currentShapeSpeed * backgroundSpeed * (0.55 + (index % 4) * 0.05) * (1 + lab * 1.7 - archive * 0.22);
     shard.rotation.x += shard.userData.rotateVel.x * speed;
     shard.rotation.y += shard.userData.rotateVel.y * speed;
     shard.rotation.z += shard.userData.rotateVel.z * speed;

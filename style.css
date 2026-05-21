@@ -1160,6 +1160,34 @@ a {
     transform: translate3d(-50%, -50%, 0) scale(1.6);
 }
 
+body.is-pointer-held:not(.has-motion-governor) .scroll-indicator {
+    animation-duration: 20s;
+}
+
+body.is-pointer-held:not(.has-motion-governor) .identity-orbit--one {
+    animation-duration: 150s;
+}
+
+body.is-pointer-held:not(.has-motion-governor) .identity-orbit--two {
+    animation-duration: 200s;
+}
+
+body.is-pointer-held:not(.has-motion-governor) .identity-orbit--three {
+    animation-duration: 117s;
+}
+
+body.is-pointer-held:not(.has-motion-governor) .map-node {
+    animation-duration: 23s;
+}
+
+body.is-pointer-held:not(.has-motion-governor) .status-dot {
+    animation-duration: 17s;
+}
+
+body.is-pointer-held:not(.has-motion-governor) .pulse-ring {
+    animation-duration: 20s;
+}
+
 a:focus-visible,
 .card:focus-within,
 .magnetic-btn:focus-visible {

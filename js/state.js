@@ -63,6 +63,7 @@ export function setPointerInactive() {
 
 export function setPointerDown(isDown) {
     AppState.pointer.down = isDown;
+    document.body.classList.toggle('is-pointer-held', isDown);
 }
 
 export function setCardFocus(isFocused) {
