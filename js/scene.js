@@ -258,11 +258,12 @@ export function createSceneController(state) {
     const pointer = new THREE.Vector2();
     const pointerAtDepth = new THREE.Vector3();
 
-    // Local look-at tracking and shared background slowdown variables
+    // Local visual clock and scroll progress for cinematic scene-only slowdown.
     let currentLookAt = null;
     let lastTime = 0;
-    let slowedSceneTime = 0;
-    let currentBackgroundSpeed = state.reducedMotion ? 0.08 : 1;
+    let sceneTime = 0;
+    let motionRate = state.reducedMotion ? 0.08 : 1;
+    let visualScrollProgress = state.scrollProgress;
     let helixPhaseAccumulator = 0;
     const helixNormalSpeed = 1.5;
     const helixReducedMotionSpeed = 0.08;
@@ -275,19 +276,25 @@ export function createSceneController(state) {
         lastTime = time;
 
         const isHoldingSlow = state.pointer.down && !state.reducedMotion;
-        const targetBackgroundSpeed = state.reducedMotion
+        const targetMotionRate = state.reducedMotion
             ? helixReducedMotionSpeed
             : (isHoldingSlow ? 0.08 : 1);
-        const backgroundSpeedEase = targetBackgroundSpeed < currentBackgroundSpeed ? 0.18 : 0.06;
-        currentBackgroundSpeed = lerp(currentBackgroundSpeed, targetBackgroundSpeed, backgroundSpeedEase);
-        slowedSceneTime += delta * currentBackgroundSpeed;
+        const motionRateEase = targetMotionRate < motionRate ? 0.18 : 0.06;
+        motionRate = lerp(motionRate, targetMotionRate, motionRateEase);
+        sceneTime += delta * motionRate;
 
-        const seconds = slowedSceneTime;
-        const backgroundInteractionSpeed = Math.max(currentBackgroundSpeed, 0.08);
-        const sceneResponseSpeed = isHoldingSlow ? Math.max(currentBackgroundSpeed, 0.08) : 1;
-        const cameraResponseAmount = 0.045 * sceneResponseSpeed;
-        const chapterResponseAmount = 0.035 * sceneResponseSpeed;
-        const particleResponseAmount = 0.045 * sceneResponseSpeed;
+        const seconds = sceneTime;
+        const effectiveMotionRate = Math.max(motionRate, 0.08);
+        const visualScrollEase = state.reducedMotion
+            ? 0.025
+            : (isHoldingSlow ? clamp(0.006 + effectiveMotionRate * 0.018, 0.006, 0.08) : 0.14);
+        visualScrollProgress = lerp(visualScrollProgress, state.scrollProgress, visualScrollEase);
+
+        const cameraResponseAmount = scaledMotionEase(0.045, effectiveMotionRate);
+        const chapterResponseAmount = scaledMotionEase(0.035, effectiveMotionRate);
+        const particleResponseAmount = scaledMotionEase(0.045, effectiveMotionRate);
+        const lightResponseAmount = scaledMotionEase(0.06, effectiveMotionRate);
+        const lightFadeAmount = scaledMotionEase(0.05, effectiveMotionRate);
         const compactScene = window.innerWidth < 768 || state.reducedMotion;
         const hero = chapterPresence(state.heroProgress);
         const identity = chapterPresence(state.identityProgress);
@@ -306,14 +313,14 @@ export function createSceneController(state) {
         renderer.toneMappingExposure = lerp(renderer.toneMappingExposure, 1.02 + identity * 0.12 + lab * 0.08 + footer * 0.1 - archive * 0.06, 0.035);
 
         // 1. DOUBLE-LERP CAMERA POSITION & FLIGHT PATH Sync
-        const targetCamPos = splinePath.getPointAt(state.scrollProgress);
+        const targetCamPos = splinePath.getPointAt(visualScrollProgress);
 
         camera.position.x = lerp(camera.position.x, targetCamPos.x + state.pointer.x * 0.35, cameraResponseAmount);
         camera.position.y = lerp(camera.position.y, targetCamPos.y + state.pointer.y * 0.22, cameraResponseAmount);
         camera.position.z = lerp(camera.position.z, targetCamPos.z, cameraResponseAmount);
 
         // Smoothly interpolate the look-at point slightly ahead
-        const lookAheadT = Math.min(state.scrollProgress + 0.038, 0.995);
+        const lookAheadT = Math.min(visualScrollProgress + 0.038, 0.995);
         const targetLookAt = splinePath.getPointAt(lookAheadT);
 
         if (!currentLookAt) {
@@ -348,18 +355,18 @@ export function createSceneController(state) {
             const lightTargetX = state.pointer.x * 12;
             const lightTargetY = state.pointer.y * 9;
             
-            cursorLightCyan.position.x = lerp(cursorLightCyan.position.x, lightTargetX, 0.06);
-            cursorLightCyan.position.y = lerp(cursorLightCyan.position.y, lightTargetY, 0.06);
+            cursorLightCyan.position.x = lerp(cursorLightCyan.position.x, lightTargetX, lightResponseAmount);
+            cursorLightCyan.position.y = lerp(cursorLightCyan.position.y, lightTargetY, lightResponseAmount);
             cursorLightCyan.position.z = 2.5;
-            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 2.0, 0.06);
+            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 2.0, lightResponseAmount);
 
-            cursorLightMagenta.position.x = lerp(cursorLightMagenta.position.x, -lightTargetX * 0.8, 0.06);
-            cursorLightMagenta.position.y = lerp(cursorLightMagenta.position.y, -lightTargetY * 0.8, 0.06);
+            cursorLightMagenta.position.x = lerp(cursorLightMagenta.position.x, -lightTargetX * 0.8, lightResponseAmount);
+            cursorLightMagenta.position.y = lerp(cursorLightMagenta.position.y, -lightTargetY * 0.8, lightResponseAmount);
             cursorLightMagenta.position.z = 1.5;
-            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 1.6, 0.06);
+            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 1.6, lightResponseAmount);
         } else {
-            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 0, 0.05);
-            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 0, 0.05);
+            cursorLightCyan.intensity = lerp(cursorLightCyan.intensity, 0, lightFadeAmount);
+            cursorLightMagenta.intensity = lerp(cursorLightMagenta.intensity, 0, lightFadeAmount);
         }
 
         // 3. SPIN & SCALE GEOMETRIC TUNNEL COLLARS based on camera proximity
@@ -367,28 +374,33 @@ export function createSceneController(state) {
         collarGroup.rotation.x = lerp(collarGroup.rotation.x, capabilities * 0.08 - identity * 0.06, chapterResponseAmount);
 
         collars.forEach((collar) => {
-            collar.rotateZ(collar.userData.rotSpeed * 0.008 * (1 + experimentalEnergy) * currentBackgroundSpeed);
+            collar.rotateZ(collar.userData.rotSpeed * 0.008 * (1 + experimentalEnergy) * effectiveMotionRate);
 
             const distToCam = collar.position.distanceTo(camera.position);
             const chapterScale = 1 + capabilities * 0.2 + lab * 0.12 + footer * 0.18 - readabilityCalm * 0.08;
             const opacityMultiplier = clamp(1 + hero * 0.35 + identity * 0.8 + capabilities * 0.22 + lab * 0.45 - readabilityCalm * 0.52 - finalThin * 0.55, 0.16, 2.1);
+            let targetScale;
+            let targetOpacity;
+
             if (distToCam < 16) {
                 // High glow and slight dilation when close to camera
-                const scaleVal = (1.0 + (16 - distToCam) * 0.016) * chapterScale;
-                collar.scale.set(scaleVal, scaleVal, scaleVal);
-                collar.material.opacity = collar.userData.baseOpacity * (1.0 + (16 - distToCam) * 0.09) * opacityMultiplier;
+                targetScale = (1.0 + (16 - distToCam) * 0.016) * chapterScale;
+                targetOpacity = collar.userData.baseOpacity * (1.0 + (16 - distToCam) * 0.09) * opacityMultiplier;
             } else {
-                collar.scale.set(chapterScale, chapterScale, chapterScale);
-                collar.material.opacity = collar.userData.baseOpacity * opacityMultiplier;
+                targetScale = chapterScale;
+                targetOpacity = collar.userData.baseOpacity * opacityMultiplier;
             }
+
+            const collarScale = lerp(collar.scale.x, targetScale, chapterResponseAmount);
+            collar.scale.set(collarScale, collarScale, collarScale);
+            collar.material.opacity = lerp(collar.material.opacity, targetOpacity, chapterResponseAmount);
         });
 
         // 4. ANIMATE FLOWING DUAL HELIX TRAILS
-        // The helix uses the same slowed scene clock as the rest of the background.
         const targetRadiusScale = state.pointer.down && !state.reducedMotion ? 0.84 : 1.0;
-        currentHelixRadiusScale = lerp(currentHelixRadiusScale, targetRadiusScale, 0.06);
+        currentHelixRadiusScale = lerp(currentHelixRadiusScale, targetRadiusScale, lightResponseAmount);
 
-        helixPhaseAccumulator += delta * helixNormalSpeed * currentBackgroundSpeed;
+        helixPhaseAccumulator += delta * helixNormalSpeed * effectiveMotionRate;
 
         const helixOpacityScale = compactScene ? 0.42 : 1;
         const helixOpacityTarget = clamp(0.42 + hero * 0.2 + identity * 0.26 + capabilities * 0.14 + lab * 0.18 - readabilityCalm * 0.24 - finalThin * 0.32, 0.08, 0.82) * helixOpacityScale;
@@ -466,7 +478,7 @@ export function createSceneController(state) {
                 const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 
                 if (dist < 4.8) {
-                    const force = (4.8 - dist) * 0.08 * state.currentShapeSpeed * backgroundInteractionSpeed;
+                    const force = (4.8 - dist) * 0.08 * state.currentShapeSpeed * effectiveMotionRate;
                     targetX += dx * force;
                     targetY += dy * force;
                     targetZ += dz * force;
@@ -493,16 +505,14 @@ export function createSceneController(state) {
                 lab,
                 archive,
                 footer,
-                backgroundSpeed: currentBackgroundSpeed,
-                interactionSpeed: backgroundInteractionSpeed,
-                isHoldingSlow
+                motionRate: effectiveMotionRate
             });
         });
 
         // 7. VOLUME AMPLIFICATION ON SCROLL
         const coneTargetOpacity = (0.02 + hero * 0.012 + capabilities * 0.018 + lab * 0.026 + monolith * 0.04 - readabilityCalm * 0.012) * (compactScene ? 0.58 : 1);
-        spotlightCone.material.opacity = lerp(spotlightCone.material.opacity, coneTargetOpacity, 0.05);
-        coreSpotlight.material.opacity = lerp(coreSpotlight.material.opacity, coneTargetOpacity * 1.5, 0.05);
+        spotlightCone.material.opacity = lerp(spotlightCone.material.opacity, coneTargetOpacity, lightFadeAmount);
+        coreSpotlight.material.opacity = lerp(coreSpotlight.material.opacity, coneTargetOpacity * 1.5, lightFadeAmount);
 
         updatePostProcessing(composer, state, monolith);
         composer.instance.render();
@@ -675,10 +685,10 @@ function createGlassShards(scene, splinePath, particleCount, particleFrames, sta
     return shards;
 }
 
-function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state, lab, archive, footer, backgroundSpeed, interactionSpeed, isHoldingSlow }) {
+function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state, lab, archive, footer, motionRate }) {
     const distToCam = Math.abs(shard.position.z - camera.position.z);
-    const shardMotionSpeed = isHoldingSlow ? backgroundSpeed * backgroundSpeed : backgroundSpeed;
-    const velocityDamping = isHoldingSlow ? 0.68 : 0.9;
+    const shardMotionSpeed = Math.max(motionRate, 0.08);
+    const velocityDamping = Math.pow(0.9, shardMotionSpeed);
     
     // Smooth magnetic pull back to designated floating home
     const target = shard.userData.home.clone();
@@ -699,7 +709,7 @@ function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDept
         const influence = state.focusCount > 0 ? 1.6 : 3.8;
 
         if (distance < influence && distance > 0.001) {
-            const force = (influence - distance) * 0.012 * state.currentShapeSpeed * interactionSpeed;
+            const force = (influence - distance) * 0.012 * state.currentShapeSpeed * shardMotionSpeed;
             shard.userData.velocity.x += dx * force;
             shard.userData.velocity.y += dy * force;
         }
@@ -746,6 +756,10 @@ function updatePostProcessing(composer, state, monolith) {
 
 function chapterPresence(progress) {
     return Math.sin(clamp(progress, 0, 1) * Math.PI);
+}
+
+function scaledMotionEase(amount, motionRate) {
+    return clamp(amount * motionRate, 0.001, 1);
 }
 
 function getPixelRatio(state) {
