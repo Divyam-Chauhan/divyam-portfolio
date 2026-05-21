@@ -109,12 +109,12 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
         .to('.hero-proof', { autoAlpha: 0, y: -60, ease: 'none' }, 0)
         .to('.scroll-indicator', { autoAlpha: 0, y: -40, ease: 'none' }, 0);
 
-    gsap.set('.identity-heading, .identity-copy p, .identity-marks span, .chapter-heading, .capability-line, .archive-intro, .card, .lab-heading, .lab-note', {
+    gsap.set('.identity-heading, .identity-thesis, .interest-pill, .identity-copy p, .prime-line, .identity-map, .chapter-heading, .capability-line, .archive-intro, .card, .lab-heading, .lab-note', {
         autoAlpha: 0,
         y: 46
     });
 
-    revealOnEnter(gsap, ScrollTrigger, '.identity-heading, .identity-copy p, .identity-marks span', '.identity-section', 0.1);
+    revealOnEnter(gsap, ScrollTrigger, '.identity-heading, .identity-thesis, .interest-pill, .identity-copy p, .prime-line, .identity-map', '.identity-section', 0.08);
     revealOnEnter(gsap, ScrollTrigger, '.chapter-heading', '.capabilities-section', 0);
 
     ScrollTrigger.batch('.capability-line', {
@@ -283,7 +283,7 @@ function splitFooterTitle() {
 }
 
 function revealStaticContent(chars) {
-    document.querySelectorAll('.identity-heading, .identity-copy p, .identity-marks span, .chapter-heading, .capability-line, .archive-intro, .card, .lab-heading, .lab-note').forEach((element) => {
+    document.querySelectorAll('.identity-heading, .identity-thesis, .interest-pill, .identity-copy p, .prime-line, .identity-map, .chapter-heading, .capability-line, .archive-intro, .card, .lab-heading, .lab-note').forEach((element) => {
         element.style.opacity = '1';
         element.style.transform = 'translate3d(0, 0, 0)';
     });
