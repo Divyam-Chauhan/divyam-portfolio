@@ -1,4 +1,4 @@
-import { AppState, lerp, setPointerFromEvent, setPointerInactive, setPointerDown } from './js/state.js';
+import { AppState, clamp, lerp, setPointerFromEvent, setPointerInactive, setPointerDown } from './js/state.js';
 import { createCursorController } from './js/cursor.js';
 import { createInteractionController } from './js/interactions.js';
 import { createSceneController } from './js/scene.js';
@@ -86,11 +86,216 @@ function createCssMotionController(state) {
     };
 }
 
+function createAudioController(state) {
+    const button = document.getElementById('audioToggle');
+    const audio = document.getElementById('siteAudio');
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const startAt = 40;
+    const normalRate = 1;
+    const slowRate = 0.08;
+
+    if (!button || !audio || !AudioContextClass) {
+        button?.setAttribute('disabled', '');
+        return { update() {} };
+    }
+
+    const sourceUrl = new URL(audio.getAttribute('src'), window.location.href).href;
+    const controller = {
+        context: null,
+        gain: null,
+        buffer: null,
+        bufferPromise: null,
+        source: null,
+        isPlaying: false,
+        requested: false,
+        rate: normalRate,
+        offset: startAt,
+        lastContextTime: 0
+    };
+
+    audio.removeAttribute('src');
+    audio.load();
+
+    window.setTimeout(() => {
+        loadBuffer().catch(() => {
+            controller.bufferPromise = null;
+        });
+    }, 350);
+
+    button.addEventListener('click', () => {
+        if (controller.requested) {
+            return;
+        }
+
+        if (!controller.isPlaying) {
+            playAudio();
+        } else {
+            pauseAudio();
+        }
+    });
+
+    function setPlayingUi() {
+        controller.isPlaying = true;
+        button.classList.add('is-playing');
+        button.setAttribute('aria-label', 'Pause soundtrack');
+        button.setAttribute('aria-pressed', 'true');
+        button.title = 'Pause soundtrack';
+    }
+
+    function setPausedUi() {
+        controller.isPlaying = false;
+        button.classList.remove('is-playing');
+        button.setAttribute('aria-label', 'Play soundtrack');
+        button.setAttribute('aria-pressed', 'false');
+        button.title = 'Play soundtrack';
+    }
+
+    async function playAudio() {
+        controller.requested = true;
+        button.classList.add('is-loading');
+
+        try {
+            const context = ensureContext();
+            await context.resume();
+            const buffer = await loadBuffer();
+            startSource(buffer);
+            setPlayingUi();
+        } catch {
+            stopSource();
+            controller.offset = startAt;
+            setPausedUi();
+        } finally {
+            controller.requested = false;
+            button.classList.remove('is-loading');
+        }
+    }
+
+    function pauseAudio() {
+        syncOffset();
+        stopSource();
+        setPausedUi();
+    }
+
+    function ensureContext() {
+        if (!controller.context) {
+            controller.context = new AudioContextClass();
+            controller.gain = controller.context.createGain();
+            controller.gain.gain.value = 0.68;
+            controller.gain.connect(controller.context.destination);
+        }
+
+        return controller.context;
+    }
+
+    function loadBuffer() {
+        if (controller.buffer) {
+            return Promise.resolve(controller.buffer);
+        }
+
+        if (!controller.bufferPromise) {
+            const context = ensureContext();
+            controller.bufferPromise = fetch(sourceUrl)
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Audio file failed to load.');
+                    }
+
+                    return response.arrayBuffer();
+                })
+                .then((data) => context.decodeAudioData(data))
+                .then((buffer) => {
+                    controller.buffer = buffer;
+                    return buffer;
+                })
+                .catch((error) => {
+                    controller.bufferPromise = null;
+                    throw error;
+                });
+        }
+
+        return controller.bufferPromise;
+    }
+
+    function startSource(buffer) {
+        stopSource();
+
+        const source = controller.context.createBufferSource();
+        const segmentStart = Math.min(startAt, Math.max(0, buffer.duration - 0.25));
+        const offset = clamp(controller.offset, segmentStart, Math.max(segmentStart, buffer.duration - 0.05));
+
+        source.buffer = buffer;
+        source.playbackRate.value = controller.rate;
+        source.connect(controller.gain);
+        source.addEventListener('ended', () => {
+            if (controller.source !== source) {
+                return;
+            }
+
+            controller.source = null;
+            controller.offset = startAt;
+            controller.rate = normalRate;
+            setPausedUi();
+        });
+
+        controller.source = source;
+        controller.offset = offset;
+        controller.lastContextTime = controller.context.currentTime;
+        source.start(0, offset);
+    }
+
+    function stopSource() {
+        const source = controller.source;
+        controller.source = null;
+
+        if (!source) {
+            return;
+        }
+
+        source.disconnect();
+
+        try {
+            source.stop();
+        } catch {
+            // The source may already have stopped naturally.
+        }
+    }
+
+    function syncOffset() {
+        if (!controller.isPlaying || !controller.context) {
+            return;
+        }
+
+        const now = controller.context.currentTime;
+        const delta = Math.max(0, now - controller.lastContextTime);
+        controller.offset += delta * controller.rate;
+        controller.lastContextTime = now;
+    }
+
+    return {
+        update() {
+            if (!controller.isPlaying) {
+                return;
+            }
+
+            syncOffset();
+
+            const targetRate = state.reducedMotion ? normalRate : (state.pointer.down ? slowRate : normalRate);
+            const rateEase = targetRate < controller.rate ? 0.18 : 0.08;
+            controller.rate = lerp(controller.rate, targetRate, rateEase);
+
+            if (controller.source) {
+                controller.source.playbackRate.value = controller.rate;
+            }
+        }
+    };
+}
+
 const scene = createSceneController(AppState);
 const interactions = createInteractionController(AppState);
 const cursor = createCursorController(AppState);
 const scroll = createScrollController(AppState);
 const cssMotion = createCssMotionController(AppState);
+const audio = createAudioController(AppState);
 
 function restoreHashTarget(attempt = 0) {
     const params = new URLSearchParams(window.location.search);
@@ -113,6 +318,7 @@ function tick(time) {
     interactions.update();
     cursor.update();
     cssMotion.update();
+    audio.update();
     requestAnimationFrame(tick);
 }
 
