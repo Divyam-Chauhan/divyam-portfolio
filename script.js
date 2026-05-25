@@ -90,7 +90,7 @@ function createAudioController(state) {
     const button = document.getElementById('audioToggle');
     const audio = document.getElementById('siteAudio');
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const startAt = 40;
+    const startAt = 0;
     const normalRate = 1;
     const slowRate = 0.08;
 
@@ -220,8 +220,8 @@ function createAudioController(state) {
         stopSource();
 
         const source = controller.context.createBufferSource();
-        const segmentStart = Math.min(startAt, Math.max(0, buffer.duration - 0.25));
-        const offset = clamp(controller.offset, segmentStart, Math.max(segmentStart, buffer.duration - 0.05));
+        const maxOffset = Math.max(0, buffer.duration - 0.05);
+        const offset = clamp(controller.offset, 0, maxOffset);
 
         source.buffer = buffer;
         source.playbackRate.value = controller.rate;
