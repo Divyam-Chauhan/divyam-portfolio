@@ -92,7 +92,7 @@ function createAudioController(state) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     const startAt = 26;
     const normalRate = 1;
-    const slowRate = 0.08;
+    const slowRate = 0.4;
 
     if (!button || !audio || !AudioContextClass) {
         button?.setAttribute('disabled', '');
