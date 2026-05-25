@@ -303,7 +303,7 @@ function restoreHashTarget(attempt = 0) {
     const target = targetId ? document.getElementById(targetId) : null;
 
     if (target) {
-        scroll.scrollTo(target);
+        scroll.scrollTo(target, { immediate: true });
 
         if (attempt < 2) {
             window.setTimeout(() => restoreHashTarget(attempt + 1), 120);
@@ -314,6 +314,7 @@ function restoreHashTarget(attempt = 0) {
 requestAnimationFrame(() => restoreHashTarget());
 
 function tick(time) {
+    scroll.update(time);
     scene.update(time);
     interactions.update();
     cursor.update();

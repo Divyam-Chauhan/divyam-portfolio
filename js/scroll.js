@@ -16,7 +16,7 @@ export function createScrollController(state) {
     const ScrollTrigger = window.ScrollTrigger;
     const Lenis = window.Lenis;
     let lenis = null;
-    let cleanupTicker = null;
+    let cleanupAnimations = null;
     let nativeHandler = null;
 
     setSection('hero');
@@ -26,9 +26,9 @@ export function createScrollController(state) {
 
         lenis = new Lenis({
             anchors: true,
-            lerp: 0.08,
+            lerp: 0.105,
             smoothWheel: true,
-            wheelMultiplier: 0.9
+            wheelMultiplier: 1.05
         });
 
         lenis.on('scroll', (event) => {
@@ -41,15 +41,7 @@ export function createScrollController(state) {
             updateSceneTargets(state);
         });
 
-        const ticker = (time) => {
-            lenis.raf(time * 1000);
-        };
-
-        gsap.ticker.add(ticker);
-        gsap.ticker.lagSmoothing(0);
-        cleanupTicker = () => gsap.ticker.remove(ticker);
-
-        initScrollAnimations({ state, gsap, ScrollTrigger, titleChars });
+        cleanupAnimations = initScrollAnimations({ state, gsap, ScrollTrigger, titleChars });
         updateSceneTargets(state);
     } else {
         nativeHandler = () => updateNativeScrollState(state, progressBar);
@@ -63,11 +55,17 @@ export function createScrollController(state) {
             ScrollTrigger?.refresh?.();
             lenis?.resize?.();
         },
-        scrollTo(target) {
+        update(time) {
+            lenis?.raf(time);
+        },
+        scrollTo(target, options = {}) {
             if (!target) return;
 
             if (lenis) {
-                lenis.scrollTo(target, { immediate: true, force: true });
+                lenis.scrollTo(target, {
+                    immediate: options.immediate ?? false,
+                    force: true
+                });
             } else {
                 target.scrollIntoView({ block: 'start' });
             }
@@ -76,7 +74,7 @@ export function createScrollController(state) {
             ScrollTrigger?.update?.();
         },
         destroy() {
-            cleanupTicker?.();
+            cleanupAnimations?.();
             lenis?.destroy?.();
             if (nativeHandler) {
                 window.removeEventListener('scroll', nativeHandler);
@@ -91,11 +89,12 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
     gsap.fromTo('.hero-proof span', { autoAlpha: 0, x: 18 }, { autoAlpha: 1, x: 0, duration: 0.9, stagger: 0.08, delay: 0.45, ease: 'power3.out' });
 
     const setHeroSkew = gsap.quickSetter('.overlay h1', 'skewY', 'deg');
-    gsap.ticker.add(() => {
+    const updateHeroSkew = () => {
         const targetSkew = clamp(state.scrollVelocity * -0.016, -4.5, 4.5);
         state.kineticSkew = lerp(state.kineticSkew, targetSkew, 0.16);
         setHeroSkew(state.kineticSkew);
-    });
+    };
+    gsap.ticker.add(updateHeroSkew);
 
     gsap.timeline({
         scrollTrigger: {
@@ -163,6 +162,8 @@ function initScrollAnimations({ state, gsap, ScrollTrigger, titleChars }) {
         end: 'max',
         onUpdate: ({ progress }) => updateProgress(document.querySelector('.scroll-progress__bar'), progress)
     });
+
+    return () => gsap.ticker.remove(updateHeroSkew);
 }
 
 function revealOnEnter(gsap, ScrollTrigger, targets, trigger, stagger) {
