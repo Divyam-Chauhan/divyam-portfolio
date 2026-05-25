@@ -6,19 +6,29 @@ import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { clamp, lerp, smoothState } from './state.js';
 
+const BLOOM_RESOLUTION_SCALE = 0.72;
+const BOKEH_ENABLE_THRESHOLD = 0.00008;
+const DESKTOP_MIN_WIDTH = 1024;
+const DPR_PRESSURE_FRAME_MS = 21;
+const DPR_RECOVERY_FRAME_MS = 17.5;
+const DPR_MIN_DESKTOP = 1.32;
+const DPR_STEP = 0.1;
+const DPR_ADJUST_INTERVAL = 520;
+
 export function createSceneController(state) {
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x020204, 0.026); // Moody charcoal-velvet museum fog
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+    const renderQuality = createRenderQuality(state);
     
     const renderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: true,
         powerPreference: 'high-performance'
     });
+    renderer.setPixelRatio(renderQuality.current);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(getPixelRatio(state));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -109,7 +119,10 @@ export function createSceneController(state) {
     helix1Geo.setAttribute('position', new THREE.BufferAttribute(h1Positions, 3));
     helix2Geo.setAttribute('position', new THREE.BufferAttribute(h2Positions, 3));
     
-    const helixData = [];
+    const helixT = new Float32Array(helixCount);
+    const helixBase = new Float32Array(helixCount * 3);
+    const helixNormals = new Float32Array(helixCount * 3);
+    const helixBinormals = new Float32Array(helixCount * 3);
     const frames = splinePath.computeFrenetFrames(helixCount - 1, false);
     
     for (let i = 0; i < helixCount; i++) {
@@ -117,13 +130,18 @@ export function createSceneController(state) {
         const pos = splinePath.getPointAt(t);
         const normal = frames.normals[i];
         const binormal = frames.binormals[i];
-        
-        helixData.push({
-            t,
-            pos: pos.clone(),
-            normal: normal.clone(),
-            binormal: binormal.clone()
-        });
+        const index = i * 3;
+
+        helixT[i] = t;
+        helixBase[index] = pos.x;
+        helixBase[index + 1] = pos.y;
+        helixBase[index + 2] = pos.z;
+        helixNormals[index] = normal.x;
+        helixNormals[index + 1] = normal.y;
+        helixNormals[index + 2] = normal.z;
+        helixBinormals[index] = binormal.x;
+        helixBinormals[index + 1] = binormal.y;
+        helixBinormals[index + 2] = binormal.z;
     }
     
     const texture = createCircleTexture();
@@ -155,7 +173,14 @@ export function createSceneController(state) {
     const particleCount = window.innerWidth < 768 || state.reducedMotion ? 1100 : 2600;
     const particleGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
-    const initialOffsets = [];
+    const particleT = new Float32Array(particleCount);
+    const particleAngles = new Float32Array(particleCount);
+    const particleRadii = new Float32Array(particleCount);
+    const particleBase = new Float32Array(particleCount * 3);
+    const particleNormals = new Float32Array(particleCount * 3);
+    const particleBinormals = new Float32Array(particleCount * 3);
+    const particlePhases = new Float32Array(particleCount);
+    const particleSpeeds = new Float32Array(particleCount);
     
     const particleFrames = splinePath.computeFrenetFrames(particleCount - 1, false);
     
@@ -172,21 +197,26 @@ export function createSceneController(state) {
         const px = pos.x + (Math.cos(angle) * normal.x + Math.sin(angle) * binormal.x) * r;
         const py = pos.y + (Math.cos(angle) * normal.y + Math.sin(angle) * binormal.y) * r;
         const pz = pos.z + (Math.cos(angle) * normal.z + Math.sin(angle) * binormal.z) * r;
+        const index = i * 3;
         
-        positions[i * 3] = px;
-        positions[i * 3 + 1] = py;
-        positions[i * 3 + 2] = pz;
-        
-        initialOffsets.push({
-            t,
-            angle,
-            radius: r,
-            normal: normal.clone(),
-            binormal: binormal.clone(),
-            pos: pos.clone(),
-            phase: Math.random() * Math.PI * 2,
-            speed: 0.35 + Math.random() * 0.75
-        });
+        positions[index] = px;
+        positions[index + 1] = py;
+        positions[index + 2] = pz;
+
+        particleT[i] = t;
+        particleAngles[i] = angle;
+        particleRadii[i] = r;
+        particleBase[index] = pos.x;
+        particleBase[index + 1] = pos.y;
+        particleBase[index + 2] = pos.z;
+        particleNormals[index] = normal.x;
+        particleNormals[index + 1] = normal.y;
+        particleNormals[index + 2] = normal.z;
+        particleBinormals[index] = binormal.x;
+        particleBinormals[index + 1] = binormal.y;
+        particleBinormals[index + 2] = binormal.z;
+        particlePhases[i] = Math.random() * Math.PI * 2;
+        particleSpeeds[i] = 0.35 + Math.random() * 0.75;
     }
     
     particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -254,12 +284,20 @@ export function createSceneController(state) {
     scene.add(camera);
 
     const composer = createComposer({ renderer, scene, camera, state });
+    applyRenderSize(renderer, composer, renderQuality.current);
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     const pointerAtDepth = new THREE.Vector3();
+    const targetCamPos = new THREE.Vector3();
+    const targetLookAt = new THREE.Vector3();
+    const activeLookAt = new THREE.Vector3();
+    const particlePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 2);
+    const shardPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    const shardTarget = new THREE.Vector3();
 
     // Local visual clock and scroll progress for cinematic scene-only slowdown.
-    let currentLookAt = null;
+    const currentLookAt = new THREE.Vector3();
+    let hasLookAt = false;
     let lastTime = 0;
     let sceneTime = 0;
     let motionRate = state.reducedMotion ? 0.08 : 1;
@@ -274,6 +312,7 @@ export function createSceneController(state) {
 
         const delta = lastTime === 0 ? 0.016 : (time - lastTime) * 0.001;
         lastTime = time;
+        updateRenderQuality(renderQuality, delta * 1000, state, renderer, composer);
 
         const isHoldingSlow = state.pointer.down && !state.reducedMotion;
         const targetMotionRate = state.reducedMotion
@@ -313,7 +352,7 @@ export function createSceneController(state) {
         renderer.toneMappingExposure = lerp(renderer.toneMappingExposure, 1.02 + identity * 0.12 + lab * 0.08 + footer * 0.1 - archive * 0.06, 0.035);
 
         // 1. DOUBLE-LERP CAMERA POSITION & FLIGHT PATH Sync
-        const targetCamPos = splinePath.getPointAt(visualScrollProgress);
+        splinePath.getPointAt(visualScrollProgress, targetCamPos);
 
         camera.position.x = lerp(camera.position.x, targetCamPos.x + state.pointer.x * 0.35, cameraResponseAmount);
         camera.position.y = lerp(camera.position.y, targetCamPos.y + state.pointer.y * 0.22, cameraResponseAmount);
@@ -321,16 +360,19 @@ export function createSceneController(state) {
 
         // Smoothly interpolate the look-at point slightly ahead
         const lookAheadT = Math.min(visualScrollProgress + 0.038, 0.995);
-        const targetLookAt = splinePath.getPointAt(lookAheadT);
+        splinePath.getPointAt(lookAheadT, targetLookAt);
 
-        if (!currentLookAt) {
-            currentLookAt = new THREE.Vector3().copy(targetLookAt);
+        if (!hasLookAt) {
+            currentLookAt.copy(targetLookAt);
+            hasLookAt = true;
         } else {
             currentLookAt.lerp(targetLookAt, cameraResponseAmount);
         }
 
         // Add subtle mouse look-around offset
-        const activeLookAt = currentLookAt.clone().add(new THREE.Vector3(state.pointer.x * 0.8, state.pointer.y * 0.6, 0));
+        activeLookAt.copy(currentLookAt);
+        activeLookAt.x += state.pointer.x * 0.8;
+        activeLookAt.y += state.pointer.y * 0.6;
         camera.lookAt(activeLookAt);
 
         // 2. SWEEPING VOLUMETRIC FLASHLIGHT / HEADLIGHT EFFECT
@@ -347,7 +389,6 @@ export function createSceneController(state) {
         warmRimLight.intensity = lerp(warmRimLight.intensity, state.warmLightTarget * 0.8, 0.05);
 
         // Project mouse coordinate to Z-plane for particle swarm reactions
-        const particlePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 2); // z = -2 plane relative to camera
         raycaster.ray.intersectPlane(particlePlane, pointerAtDepth);
 
         // Track spotlights dynamically to follow pointer movement
@@ -376,13 +417,14 @@ export function createSceneController(state) {
         collars.forEach((collar) => {
             collar.rotateZ(collar.userData.rotSpeed * 0.008 * (1 + experimentalEnergy) * effectiveMotionRate);
 
-            const distToCam = collar.position.distanceTo(camera.position);
+            const distToCamSq = collar.position.distanceToSquared(camera.position);
             const chapterScale = 1 + capabilities * 0.2 + lab * 0.12 + footer * 0.18 - readabilityCalm * 0.08;
             const opacityMultiplier = clamp(1 + hero * 0.35 + identity * 0.8 + capabilities * 0.22 + lab * 0.45 - readabilityCalm * 0.52 - finalThin * 0.55, 0.16, 2.1);
             let targetScale;
             let targetOpacity;
 
-            if (distToCam < 16) {
+            if (distToCamSq < 256) {
+                const distToCam = Math.sqrt(distToCamSq);
                 // High glow and slight dilation when close to camera
                 targetScale = (1.0 + (16 - distToCam) * 0.016) * chapterScale;
                 targetOpacity = collar.userData.baseOpacity * (1.0 + (16 - distToCam) * 0.09) * opacityMultiplier;
@@ -413,31 +455,41 @@ export function createSceneController(state) {
         const h2Arr = helix2Geo.attributes.position.array;
         
         for (let i = 0; i < helixCount; i++) {
-            const data = helixData[i];
+            const idx = i * 3;
+            const t = helixT[i];
+            const normalX = helixNormals[idx];
+            const normalY = helixNormals[idx + 1];
+            const normalZ = helixNormals[idx + 2];
+            const binormalX = helixBinormals[idx];
+            const binormalY = helixBinormals[idx + 1];
+            const binormalZ = helixBinormals[idx + 2];
             const turns = 36 - identity * 9 + capabilities * 8 + lab * 12 - footer * 6;
-            const angle1 = data.t * Math.PI * turns + helixPhaseAccumulator;
+            const angle1 = t * Math.PI * turns + helixPhaseAccumulator;
             const angle2 = angle1 + Math.PI;
+            const cos1 = Math.cos(angle1);
+            const sin1 = Math.sin(angle1);
+            const cos2 = Math.cos(angle2);
+            const sin2 = Math.sin(angle2);
             
             // Pulsate base radius and apply interactive scaling
-            const baseRadius = 2.4 + capabilities * 1.2 + identity * 0.55 + lab * 0.35 - readabilityCalm * 0.55 + footer * 0.2 + Math.sin(data.t * Math.PI * 4 + seconds * 0.5) * 0.25;
+            const baseRadius = 2.4 + capabilities * 1.2 + identity * 0.55 + lab * 0.35 - readabilityCalm * 0.55 + footer * 0.2 + Math.sin(t * Math.PI * 4 + seconds * 0.5) * 0.25;
             const radius = baseRadius * currentHelixRadiusScale;
             
-            const offsetX1 = (Math.cos(angle1) * data.normal.x + Math.sin(angle1) * data.binormal.x) * radius;
-            const offsetY1 = (Math.cos(angle1) * data.normal.y + Math.sin(angle1) * data.binormal.y) * radius;
-            const offsetZ1 = (Math.cos(angle1) * data.normal.z + Math.sin(angle1) * data.binormal.z) * radius;
+            const offsetX1 = (cos1 * normalX + sin1 * binormalX) * radius;
+            const offsetY1 = (cos1 * normalY + sin1 * binormalY) * radius;
+            const offsetZ1 = (cos1 * normalZ + sin1 * binormalZ) * radius;
             
-            const offsetX2 = (Math.cos(angle2) * data.normal.x + Math.sin(angle2) * data.binormal.x) * radius;
-            const offsetY2 = (Math.cos(angle2) * data.normal.y + Math.sin(angle2) * data.binormal.y) * radius;
-            const offsetZ2 = (Math.cos(angle2) * data.normal.z + Math.sin(angle2) * data.binormal.z) * radius;
+            const offsetX2 = (cos2 * normalX + sin2 * binormalX) * radius;
+            const offsetY2 = (cos2 * normalY + sin2 * binormalY) * radius;
+            const offsetZ2 = (cos2 * normalZ + sin2 * binormalZ) * radius;
             
-            const idx = i * 3;
-            h1Arr[idx] = data.pos.x + offsetX1;
-            h1Arr[idx + 1] = data.pos.y + offsetY1;
-            h1Arr[idx + 2] = data.pos.z + offsetZ1;
+            h1Arr[idx] = helixBase[idx] + offsetX1;
+            h1Arr[idx + 1] = helixBase[idx + 1] + offsetY1;
+            h1Arr[idx + 2] = helixBase[idx + 2] + offsetZ1;
             
-            h2Arr[idx] = data.pos.x + offsetX2;
-            h2Arr[idx + 1] = data.pos.y + offsetY2;
-            h2Arr[idx + 2] = data.pos.z + offsetZ2;
+            h2Arr[idx] = helixBase[idx] + offsetX2;
+            h2Arr[idx + 1] = helixBase[idx + 1] + offsetY2;
+            h2Arr[idx + 2] = helixBase[idx + 2] + offsetZ2;
         }
         helix1Geo.attributes.position.needsUpdate = true;
         helix2Geo.attributes.position.needsUpdate = true;
@@ -450,23 +502,32 @@ export function createSceneController(state) {
 
         for (let i = 0; i < count; i++) {
             const i3 = i * 3;
-            const offset = initialOffsets[i];
+            const t = particleT[i];
+            const phase = particlePhases[i];
+            const normalX = particleNormals[i3];
+            const normalY = particleNormals[i3 + 1];
+            const normalZ = particleNormals[i3 + 2];
+            const binormalX = particleBinormals[i3];
+            const binormalY = particleBinormals[i3 + 1];
+            const binormalZ = particleBinormals[i3 + 2];
             
             // Swirling tube rotation
-            const currentAngle = offset.angle + seconds * (0.05 + lab * 0.08) * offset.speed;
-            const driftRadius = (offset.radius + Math.sin(seconds * 0.25 + offset.phase) * 0.12) * (1 + identity * 0.72 + capabilities * 0.28 + lab * 0.18 - readabilityCalm * 0.18);
+            const currentAngle = particleAngles[i] + seconds * (0.05 + lab * 0.08) * particleSpeeds[i];
+            const driftRadius = (particleRadii[i] + Math.sin(seconds * 0.25 + phase) * 0.12) * (1 + identity * 0.72 + capabilities * 0.28 + lab * 0.18 - readabilityCalm * 0.18);
+            const cosAngle = Math.cos(currentAngle);
+            const sinAngle = Math.sin(currentAngle);
             
-            let targetX = offset.pos.x + (Math.cos(currentAngle) * offset.normal.x + Math.sin(currentAngle) * offset.binormal.x) * driftRadius;
-            let targetY = offset.pos.y + (Math.cos(currentAngle) * offset.normal.y + Math.sin(currentAngle) * offset.binormal.y) * driftRadius;
-            let targetZ = offset.pos.z + (Math.cos(currentAngle) * offset.normal.z + Math.sin(currentAngle) * offset.binormal.z) * driftRadius;
+            let targetX = particleBase[i3] + (cosAngle * normalX + sinAngle * binormalX) * driftRadius;
+            let targetY = particleBase[i3 + 1] + (cosAngle * normalY + sinAngle * binormalY) * driftRadius;
+            let targetZ = particleBase[i3 + 2] + (cosAngle * normalZ + sinAngle * binormalZ) * driftRadius;
 
             if (identity > 0.001) {
-                targetY = lerp(targetY, offset.pos.y * 0.16 + Math.sin(offset.t * Math.PI * 12 + seconds) * 0.08, identity * 0.72);
-                targetX += Math.sin(offset.t * Math.PI * 10 + offset.phase) * identity * 0.55;
+                targetY = lerp(targetY, particleBase[i3 + 1] * 0.16 + Math.sin(t * Math.PI * 12 + seconds) * 0.08, identity * 0.72);
+                targetX += Math.sin(t * Math.PI * 10 + phase) * identity * 0.55;
             }
 
             if (capabilities > 0.001) {
-                targetZ += Math.sin(offset.t * Math.PI * 16 + seconds * 0.35) * capabilities * 0.55;
+                targetZ += Math.sin(t * Math.PI * 16 + seconds * 0.35) * capabilities * 0.55;
             }
 
             // Pointer swarming physics - only computed if close to the camera for optimization!
@@ -500,6 +561,8 @@ export function createSceneController(state) {
                 monolith,
                 raycaster,
                 pointerAtDepth,
+                shardPlane,
+                shardTarget,
                 camera,
                 state,
                 lab,
@@ -521,10 +584,9 @@ export function createSceneController(state) {
     function resize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setPixelRatio(getPixelRatio(state));
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        composer.instance.setSize(window.innerWidth, window.innerHeight);
-        composer.bloom.setSize(window.innerWidth, window.innerHeight);
+        renderQuality.target = getPixelRatio(state);
+        renderQuality.current = Math.min(renderQuality.current, renderQuality.target);
+        applyRenderSize(renderer, composer, renderQuality.current);
     }
 
     return { update, resize };
@@ -550,6 +612,7 @@ function createComposer({ renderer, scene, camera, state }) {
     composer.addPass(bloom);
     composer.addPass(bokeh);
     composer.addPass(output);
+    bloom.setSize(window.innerWidth * BLOOM_RESOLUTION_SCALE, window.innerHeight * BLOOM_RESOLUTION_SCALE);
 
     return { instance: composer, bloom, bokeh };
 }
@@ -685,22 +748,22 @@ function createGlassShards(scene, splinePath, particleCount, particleFrames, sta
     return shards;
 }
 
-function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, camera, state, lab, archive, footer, motionRate }) {
+function updateShard({ shard, index, seconds, monolith, raycaster, pointerAtDepth, shardPlane, shardTarget, camera, state, lab, archive, footer, motionRate }) {
     const distToCam = Math.abs(shard.position.z - camera.position.z);
     const shardMotionSpeed = Math.max(motionRate, 0.08);
     const velocityDamping = Math.pow(0.9, shardMotionSpeed);
     
     // Smooth magnetic pull back to designated floating home
-    const target = shard.userData.home.clone();
+    shardTarget.copy(shard.userData.home);
     const drift = Math.sin(seconds * (0.38 + lab * 0.35) + shard.userData.phase) * (1.0 - monolith) * (0.18 + lab * 0.22);
-    target.y += drift;
-    target.x += Math.sin(seconds * 0.42 + shard.userData.phase) * lab * 0.16;
+    shardTarget.y += drift;
+    shardTarget.x += Math.sin(seconds * 0.42 + shard.userData.phase) * lab * 0.16;
     
-    shard.userData.velocity.add(target.sub(shard.position).multiplyScalar(0.005 * shardMotionSpeed));
+    shard.userData.velocity.add(shardTarget.sub(shard.position).multiplyScalar(0.005 * shardMotionSpeed));
 
     // Pointer kinetic reaction - only calculated if shard is close to camera
     if (distToCam < 15 && state.pointer.active && !state.reducedMotion) {
-        const shardPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -shard.position.z);
+        shardPlane.constant = -shard.position.z;
         raycaster.ray.intersectPlane(shardPlane, pointerAtDepth);
 
         const dx = shard.position.x - pointerAtDepth.x;
@@ -741,12 +804,15 @@ function updatePostProcessing(composer, state, monolith) {
     composer.bloom.strength = lerp(composer.bloom.strength, bloomTarget, 0.05);
     composer.bloom.radius = lerp(composer.bloom.radius, 0.46 + identity * 0.16 + lab * 0.18 + footer * 0.18, 0.05);
 
+    const bokehBlur = state.currentBlur;
+    composer.bokeh.enabled = bokehBlur > BOKEH_ENABLE_THRESHOLD;
+
     if (composer.bokeh.uniforms?.maxblur) {
-        composer.bokeh.uniforms.maxblur.value = state.currentBlur;
+        composer.bokeh.uniforms.maxblur.value = bokehBlur;
     }
 
     if (composer.bokeh.uniforms?.aperture) {
-        composer.bokeh.uniforms.aperture.value = 0.000025 + state.currentBlur * 0.004;
+        composer.bokeh.uniforms.aperture.value = 0.000025 + bokehBlur * 0.004;
     }
 
     if (composer.bokeh.uniforms?.focus) {
@@ -760,6 +826,68 @@ function chapterPresence(progress) {
 
 function scaledMotionEase(amount, motionRate) {
     return clamp(amount * motionRate, 0.001, 1);
+}
+
+function createRenderQuality(state) {
+    const target = getPixelRatio(state);
+
+    return {
+        current: target,
+        target,
+        pressure: 0,
+        recovery: 0,
+        lastAdjust: 0
+    };
+}
+
+function updateRenderQuality(quality, frameMs, state, renderer, composer) {
+    quality.target = getPixelRatio(state);
+
+    if (state.reducedMotion || window.innerWidth < DESKTOP_MIN_WIDTH) {
+        if (Math.abs(quality.current - quality.target) > 0.01) {
+            quality.current = quality.target;
+            applyRenderSize(renderer, composer, quality.current);
+        }
+        return;
+    }
+
+    quality.pressure = lerp(quality.pressure, frameMs > DPR_PRESSURE_FRAME_MS ? 1 : 0, 0.08);
+    quality.recovery = lerp(quality.recovery, frameMs < DPR_RECOVERY_FRAME_MS ? 1 : 0, 0.045);
+
+    const now = performance.now();
+    if (now - quality.lastAdjust < DPR_ADJUST_INTERVAL) {
+        return;
+    }
+
+    const minDpr = Math.min(quality.target, DPR_MIN_DESKTOP);
+    let next = quality.current;
+
+    if (quality.pressure > 0.62 && quality.current > minDpr) {
+        next = Math.max(minDpr, quality.current - DPR_STEP);
+        quality.pressure = 0.25;
+        quality.recovery = 0;
+    } else if (quality.recovery > 0.82 && quality.current < quality.target) {
+        next = Math.min(quality.target, quality.current + DPR_STEP * 0.5);
+        quality.recovery = 0.25;
+        quality.pressure = 0;
+    }
+
+    if (Math.abs(next - quality.current) > 0.01) {
+        quality.current = next;
+        quality.lastAdjust = now;
+        applyRenderSize(renderer, composer, quality.current);
+    }
+}
+
+function applyRenderSize(renderer, composer, pixelRatio) {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(width, height);
+    composer.instance.setPixelRatio?.(pixelRatio);
+    composer.instance.setSize(width, height);
+    composer.bloom.setSize(width * BLOOM_RESOLUTION_SCALE, height * BLOOM_RESOLUTION_SCALE);
 }
 
 function getPixelRatio(state) {
