@@ -90,7 +90,7 @@ function createAudioController(state) {
     const button = document.getElementById('audioToggle');
     const audio = document.getElementById('siteAudio');
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const startAt = 0;
+    const startAt = 26;
     const normalRate = 1;
     const slowRate = 0.08;
 
