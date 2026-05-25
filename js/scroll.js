@@ -26,9 +26,9 @@ export function createScrollController(state) {
 
         lenis = new Lenis({
             anchors: true,
-            lerp: 0.105,
+            lerp: 0.06,
             smoothWheel: true,
-            wheelMultiplier: 1.05
+            wheelMultiplier: 0.5
         });
 
         lenis.on('scroll', (event) => {
