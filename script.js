@@ -1,5 +1,4 @@
 import { AppState, clamp, lerp, setPointerFromEvent, setPointerInactive, setPointerDown } from './js/state.js';
-import { createCursorController } from './js/cursor.js';
 import { createInteractionController } from './js/interactions.js';
 import { createSceneController } from './js/scene.js';
 import { createScrollController } from './js/scroll.js';
@@ -292,7 +291,6 @@ function createAudioController(state) {
 
 const scene = createSceneController(AppState);
 const interactions = createInteractionController(AppState);
-const cursor = createCursorController(AppState);
 const scroll = createScrollController(AppState);
 const cssMotion = createCssMotionController(AppState);
 const audio = createAudioController(AppState);
@@ -317,7 +315,6 @@ function tick(time) {
     scroll.update(time);
     scene.update(time);
     interactions.update();
-    cursor.update();
     cssMotion.update();
     audio.update();
     requestAnimationFrame(tick);
