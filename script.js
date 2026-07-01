@@ -360,3 +360,93 @@ interactables.forEach((el) => {
         cursor?.classList.remove('active');
     });
 });
+
+const turb = document.getElementById('revelio-turbulence');
+let turbTween = null;
+let activeCards = 0;
+const turbState = { bf: 0.012 };
+
+const startWobble = () => {
+    activeCards++;
+    if (!window.gsap || !turb || turbTween) return;
+    turbTween = window.gsap.to(turbState, {
+        bf: 0.02,
+        duration: 2.2,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        onUpdate: () => turb.setAttribute('baseFrequency', `${turbState.bf} ${turbState.bf * 1.25}`)
+    });
+};
+
+const stopWobble = () => {
+    activeCards = Math.max(0, activeCards - 1);
+    if (activeCards === 0 && turbTween) {
+        turbTween.kill();
+        turbTween = null;
+    }
+};
+
+document.querySelectorAll('.card').forEach((card) => {
+    const visual = card.querySelector('.card-visual') || card;
+    let overlay = visual.querySelector('.card-revelio-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'card-revelio-overlay';
+        visual.appendChild(overlay);
+    }
+
+    const state = { x: 0, y: 0, r: 0 };
+
+    const updateVars = () => {
+        overlay.style.setProperty('--revelio-x', `${state.x}px`);
+        overlay.style.setProperty('--revelio-y', `${state.y}px`);
+        overlay.style.setProperty('--revelio-r', `${state.r}px`);
+    };
+
+    const xTo = window.gsap ? window.gsap.quickTo(state, "x", { duration: 0.38, ease: "power3", onUpdate: updateVars }) : null;
+    const yTo = window.gsap ? window.gsap.quickTo(state, "y", { duration: 0.38, ease: "power3", onUpdate: updateVars }) : null;
+
+    card.addEventListener('mouseenter', (e) => {
+        const rect = visual.getBoundingClientRect();
+        state.x = e.clientX - rect.left + 50;
+        state.y = e.clientY - rect.top + 50;
+        if (xTo && yTo) {
+            xTo(state.x);
+            yTo(state.y);
+        }
+        updateVars();
+        startWobble();
+        const targetR = Math.max(rect.width, rect.height) * 1.05;
+        if (window.gsap) {
+            window.gsap.to(state, { r: targetR, duration: 1.25, ease: "power2.out", onUpdate: updateVars });
+        } else {
+            state.r = targetR;
+            updateVars();
+        }
+    });
+
+    card.addEventListener('mousemove', (e) => {
+        const rect = visual.getBoundingClientRect();
+        const relX = e.clientX - rect.left + 50;
+        const relY = e.clientY - rect.top + 50;
+        if (xTo && yTo) {
+            xTo(relX);
+            yTo(relY);
+        } else {
+            state.x = relX;
+            state.y = relY;
+            updateVars();
+        }
+    });
+
+    card.addEventListener('mouseleave', (e) => {
+        stopWobble();
+        if (window.gsap) {
+            window.gsap.to(state, { r: 0, duration: 0.85, ease: "power2.inOut", onUpdate: updateVars });
+        } else {
+            state.r = 0;
+            updateVars();
+        }
+    });
+});
