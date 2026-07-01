@@ -696,6 +696,8 @@ a {
     grid-column: span 12;
     perspective: 1000px;
     opacity: 1;
+    border-radius: 8px;
+    overflow: hidden;
     --hover-border: rgba(142, 230, 173, 0.2);
     --hover-glow: rgba(142, 230, 173, 0.04);
     --mouse-glow: rgba(142, 230, 173, 0.055);
@@ -766,6 +768,19 @@ a {
     background: linear-gradient(135deg, var(--glow-accent), transparent 45%, var(--glow-accent2));
     pointer-events: none;
     transition: opacity 280ms ease;
+}
+
+.card-revelio-overlay {
+    position: absolute;
+    inset: -50px;
+    pointer-events: none;
+    z-index: 3;
+    border-radius: inherit;
+    background: radial-gradient(circle at var(--revelio-x, 50%) var(--revelio-y, 50%), rgba(255, 255, 255, 0.45) 0%, rgba(142, 230, 173, 0.2) 30%, rgba(255, 255, 255, 0.08) 60%, transparent 100%);
+    filter: url(#revelio-filter);
+    mix-blend-mode: screen;
+    mask-image: radial-gradient(circle at var(--revelio-x, 50%) var(--revelio-y, 50%), black calc(var(--revelio-r, 0px) * 0.75), rgba(0, 0, 0, 0.5) calc(var(--revelio-r, 0px) * 0.9), transparent var(--revelio-r, 0px));
+    -webkit-mask-image: radial-gradient(circle at var(--revelio-x, 50%) var(--revelio-y, 50%), black calc(var(--revelio-r, 0px) * 0.75), rgba(0, 0, 0, 0.5) calc(var(--revelio-r, 0px) * 0.9), transparent var(--revelio-r, 0px));
 }
 
 .card-visual::after {
