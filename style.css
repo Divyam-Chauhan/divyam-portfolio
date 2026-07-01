@@ -32,7 +32,6 @@ body::-webkit-scrollbar {
     --z-canvas: 0;
     --z-page: 2;
     --z-ui: 20;
-    --z-cursor: 50;
 }
 
 * {
@@ -56,11 +55,8 @@ body {
     line-height: 1.5;
 }
 
-body.has-custom-cursor,
-body.has-custom-cursor a,
-body.has-custom-cursor button,
-body.has-custom-cursor .card {
-    cursor: none;
+a, button, [role="button"] {
+    cursor: pointer;
 }
 
 main,
@@ -1191,49 +1187,6 @@ a {
     transform: translateX(-3px);
 }
 
-.custom-cursor-ring {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: var(--z-cursor);
-    width: 32px;
-    height: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.65);
-    border-radius: 50%;
-    mix-blend-mode: difference;
-    pointer-events: none;
-    will-change: transform;
-    transform: translate3d(-50%, -50%, 0);
-    transition: width 240ms cubic-bezier(0.25, 1, 0.5, 1), height 240ms cubic-bezier(0.25, 1, 0.5, 1), border-color 220ms ease, background 220ms ease;
-}
-
-.custom-cursor-ring.is-active {
-    width: 46px;
-    height: 46px;
-    border-color: rgba(142, 230, 173, 0.82);
-    background: rgba(142, 230, 173, 0.05);
-}
-
-.custom-cursor-dot {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: var(--z-cursor);
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: #fff;
-    mix-blend-mode: difference;
-    pointer-events: none;
-    will-change: transform;
-    transform: translate3d(-50%, -50%, 0);
-    transition: background 200ms ease, transform 150ms ease;
-}
-
-.custom-cursor-dot.is-active {
-    background: var(--cyan);
-    transform: translate3d(-50%, -50%, 0) scale(1.6);
-}
 
 body.is-pointer-held:not(.has-motion-governor) .scroll-indicator {
     animation-duration: 30s;
@@ -1522,10 +1475,6 @@ a:focus-visible,
         display: none;
     }
 
-    .custom-cursor-ring,
-    .custom-cursor-dot {
-        display: none;
-    }
 
     .social-row {
         gap: 1rem;
@@ -1557,19 +1506,6 @@ a:focus-visible,
     }
 }
 
-@media (pointer: coarse) {
-    .custom-cursor-ring,
-    .custom-cursor-dot {
-        display: none;
-    }
-
-    body.has-custom-cursor,
-    body.has-custom-cursor a,
-    body.has-custom-cursor button,
-    body.has-custom-cursor .card {
-        cursor: auto;
-    }
-}
 
 @media (prefers-reduced-motion: reduce) {
     *,
@@ -1581,9 +1517,7 @@ a:focus-visible,
         transition-duration: 0.01ms !important;
     }
 
-    .scroll-indicator,
-    .custom-cursor-ring,
-    .custom-cursor-dot {
+    .scroll-indicator {
         display: none;
     }
 
