@@ -6,11 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Divyam Chauhan's Portfolio</title>
     <link rel="stylesheet" href="https://unpkg.com/lenis@1.3.23/dist/lenis.css">
-    <link rel="stylesheet" href="style.css?v=10">
+    <link rel="stylesheet" href="style.css?v=14">
 </head>
 
 <body>
     <div class="custom-cursor"></div>
+    <svg width="0" height="0" style="position: absolute; pointer-events: none;">
+        <filter id="revelio-filter" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence id="revelio-turbulence" type="fractalNoise" baseFrequency="0.012 0.015" numOctaves="2" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="65" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+    </svg>
 
     <button class="audio-toggle" id="audioToggle" type="button" aria-label="Play soundtrack" aria-pressed="false"
         title="Play soundtrack">
