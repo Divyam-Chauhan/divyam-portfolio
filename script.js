@@ -331,3 +331,32 @@ window.addEventListener('resize', () => {
 window.addEventListener('pagehide', () => {
     scroll.destroy();
 });
+
+const cursor = document.querySelector('.custom-cursor');
+
+if (cursor && window.gsap) {
+    window.gsap.set(cursor, { xPercent: -50, yPercent: -50 });
+    const xTo = window.gsap.quickTo(cursor, "x", { duration: 0.15, ease: "power3" });
+    const yTo = window.gsap.quickTo(cursor, "y", { duration: 0.15, ease: "power3" });
+
+    document.addEventListener('mousemove', (e) => {
+        xTo(e.clientX);
+        yTo(e.clientY);
+    });
+} else if (cursor) {
+    document.addEventListener('mousemove', (e) => {
+        cursor.style.transform = `translate(calc(${e.clientX}px - 50%), calc(${e.clientY}px - 50%))`;
+    });
+}
+
+const interactables = document.querySelectorAll('a, button, .project-card, .card');
+
+interactables.forEach((el) => {
+    el.addEventListener('mouseenter', () => {
+        cursor?.classList.add('active');
+    });
+    
+    el.addEventListener('mouseleave', () => {
+        cursor?.classList.remove('active');
+    });
+});
