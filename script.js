@@ -1,341 +1,452 @@
-import * as THREE from 'three';
+import { AppState, clamp, lerp, setPointerFromEvent, setPointerInactive, setPointerDown } from './js/state.js';
+import { createInteractionController } from './js/interactions.js';
+import { createSceneController } from './js/scene.js';
+import { createScrollController } from './js/scroll.js';
 
-const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x050505, 0.03);
+function handlePointerDown(event) {
+    if (event.isPrimary === false || (event.pointerType === 'mouse' && event.button !== 0)) {
+        return;
+    }
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.z = 15;
-
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-document.body.appendChild(renderer.domElement);
-
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambientLight);
-
-const mainLight = new THREE.DirectionalLight(0xffffff, 2);
-mainLight.position.set(5, 10, 7);
-scene.add(mainLight);
-
-const blueRimLight = new THREE.PointLight(0x0044ff, 5, 50);
-blueRimLight.position.set(-10, -5, 5);
-scene.add(blueRimLight);
-
-const cylinderGeo = new THREE.CylinderGeometry(0.6, 0.6, 3.5, 32);
-
-const materials = [
-    new THREE.MeshPhysicalMaterial({ color: 0x1a53ff, roughness: 0.1, metalness: 0.1, clearcoat: 1.0 }),
-    new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1, clearcoat: 1.0 }),
-    new THREE.MeshPhysicalMaterial({ color: 0x111111, roughness: 0.2, metalness: 0.5, clearcoat: 1.0 })
-];
-
-function createJack() {
-    const group = new THREE.Group();
-    const mat = materials[Math.floor(Math.random() * materials.length)];
-
-    const m1 = new THREE.Mesh(cylinderGeo, mat);
-    const m2 = new THREE.Mesh(cylinderGeo, mat);
-    m2.rotation.z = Math.PI / 2;
-    const m3 = new THREE.Mesh(cylinderGeo, mat);
-    m3.rotation.x = Math.PI / 2;
-
-    group.add(m1, m2, m3);
-    return group;
+    setPointerFromEvent(event);
+    setPointerDown(true);
 }
 
-const objects = [];
-const count = 35;
+function handlePointerEnd(event) {
+    if (event?.isPrimary === false) {
+        return;
+    }
 
-for (let i = 0; i < count; i++) {
-    const jack = createJack();
-
-    jack.position.x = (Math.random() - 0.5) * 35;
-    jack.position.y = (Math.random() - 0.5) * 35;
-    jack.position.z = (Math.random() - 0.5) * 15;
-
-    jack.rotation.x = Math.random() * Math.PI;
-    jack.rotation.y = Math.random() * Math.PI;
-
-    jack.userData = {
-        velocity: new THREE.Vector3(0, 0, 0),
-        rotateVel: new THREE.Vector3(0, 0, 0)
-    };
-
-    scene.add(jack);
-    objects.push(jack);
+    setPointerDown(false);
 }
 
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-const mouseTarget = new THREE.Vector3();
-
-document.addEventListener('mousemove', (e) => {
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-    raycaster.ray.intersectPlane(plane, mouseTarget);
+document.addEventListener('pointermove', setPointerFromEvent, { passive: true });
+document.addEventListener('pointerleave', setPointerInactive, { passive: true });
+document.addEventListener('pointerdown', handlePointerDown, { passive: true });
+window.addEventListener('pointerup', handlePointerEnd, { passive: true });
+window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
+window.addEventListener('blur', handlePointerEnd);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        setPointerDown(false);
+    }
 });
 
-const clock = new THREE.Clock();
+const governedMotionSelector = [
+    '.scroll-indicator',
+    '.identity-orbit',
+    '.map-node',
+    '.status-dot',
+    '.pulse-ring'
+].join(', ');
 
-function animate() {
-    requestAnimationFrame(animate);
+function createCssMotionController(state) {
+    if (!document.getAnimations) {
+        return { update() {}, refresh() {} };
+    }
 
-    raycaster.setFromCamera(mouse, camera);
+    const motion = {
+        rate: state.reducedMotion ? 0.08 : 1,
+        frames: 0,
+        animations: []
+    };
 
-    objects.forEach(obj => {
-        const objectPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -obj.position.z);
-        const mouseAtObjectDepth = new THREE.Vector3();
+    document.body.classList.add('has-motion-governor');
 
-        raycaster.ray.intersectPlane(objectPlane, mouseAtObjectDepth);
+    function refresh() {
+        motion.animations = document.getAnimations().filter((animation) => {
+            const target = animation.effect?.target;
+            return target?.matches?.(governedMotionSelector);
+        });
 
-        const dx = obj.position.x - mouseAtObjectDepth.x;
-        const dy = obj.position.y - mouseAtObjectDepth.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        motion.animations.forEach((animation) => {
+            animation.playbackRate = motion.rate;
+        });
+    }
 
-        if (dist < 5) {
-            const force = (5 - dist) * 0.08;
+    refresh();
 
-            obj.userData.velocity.x += dx * force;
-            obj.userData.velocity.y += dy * force;
+    return {
+        update() {
+            if (motion.frames % 90 === 0) {
+                refresh();
+            }
+            motion.frames += 1;
 
-            obj.userData.rotateVel.x += (Math.random() - 0.5) * 0.1;
-            obj.userData.rotateVel.y += (Math.random() - 0.5) * 0.1;
+            const targetRate = state.reducedMotion ? 0.08 : (state.pointer.down ? 0.08 : 1);
+            const rateEase = targetRate < motion.rate ? 0.18 : 0.08;
+            motion.rate = lerp(motion.rate, targetRate, rateEase);
+
+            motion.animations.forEach((animation) => {
+                animation.playbackRate = motion.rate;
+            });
+        },
+        refresh
+    };
+}
+
+function createAudioController(state) {
+    const button = document.getElementById('audioToggle');
+    const audio = document.getElementById('siteAudio');
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const startAt = 26;
+    const normalRate = 1;
+    const slowRate = 0.4;
+
+    if (!button || !audio || !AudioContextClass) {
+        button?.setAttribute('disabled', '');
+        return { update() {} };
+    }
+
+    const sourceUrl = new URL(audio.getAttribute('src'), window.location.href).href;
+    const controller = {
+        context: null,
+        gain: null,
+        buffer: null,
+        bufferPromise: null,
+        source: null,
+        isPlaying: false,
+        requested: false,
+        rate: normalRate,
+        offset: startAt,
+        lastContextTime: 0
+    };
+
+    audio.removeAttribute('src');
+    audio.load();
+
+    window.setTimeout(() => {
+        loadBuffer().catch(() => {
+            controller.bufferPromise = null;
+        });
+    }, 350);
+
+    button.addEventListener('click', () => {
+        if (controller.requested) {
+            return;
+        }
+
+        if (!controller.isPlaying) {
+            playAudio();
+        } else {
+            pauseAudio();
         }
     });
 
-    const collisionRadius = 2.5;
+    function setPlayingUi() {
+        controller.isPlaying = true;
+        button.classList.add('is-playing');
+        button.setAttribute('aria-label', 'Pause soundtrack');
+        button.setAttribute('aria-pressed', 'true');
+        button.title = 'Pause soundtrack';
+    }
 
-    for (let i = 0; i < objects.length; i++) {
-        for (let j = i + 1; j < objects.length; j++) {
-            const obj1 = objects[i];
-            const obj2 = objects[j];
+    function setPausedUi() {
+        controller.isPlaying = false;
+        button.classList.remove('is-playing');
+        button.setAttribute('aria-label', 'Play soundtrack');
+        button.setAttribute('aria-pressed', 'false');
+        button.title = 'Play soundtrack';
+    }
 
-            const dx = obj2.position.x - obj1.position.x;
-            const dy = obj2.position.y - obj1.position.y;
-            const dz = obj2.position.z - obj1.position.z;
-            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    async function playAudio() {
+        controller.requested = true;
+        button.classList.add('is-loading');
 
-            const minDistance = collisionRadius * 2;
-
-            if (distance < minDistance && distance > 0) {
-                const nx = dx / distance;
-                const ny = dy / distance;
-                const nz = dz / distance;
-
-                const overlap = minDistance - distance;
-
-                const separation = overlap * 0.5;
-                obj1.position.x -= nx * separation;
-                obj1.position.y -= ny * separation;
-                obj1.position.z -= nz * separation;
-
-                obj2.position.x += nx * separation;
-                obj2.position.y += ny * separation;
-                obj2.position.z += nz * separation;
-
-                const relativeVelX = obj2.userData.velocity.x - obj1.userData.velocity.x;
-                const relativeVelY = obj2.userData.velocity.y - obj1.userData.velocity.y;
-                const relativeVelZ = obj2.userData.velocity.z - obj1.userData.velocity.z;
-
-                const velAlongNormal = relativeVelX * nx + relativeVelY * ny + relativeVelZ * nz;
-
-                if (velAlongNormal < 0) {
-                    const speed = Math.abs(velAlongNormal);
-                    const restitution = speed > 0.1 ? 0.6 : 0.3;
-                    const impulse = -(1 + restitution) * velAlongNormal * 0.5;
-
-                    obj1.userData.velocity.x -= impulse * nx;
-                    obj1.userData.velocity.y -= impulse * ny;
-                    obj1.userData.velocity.z -= impulse * nz;
-
-                    obj2.userData.velocity.x += impulse * nx;
-                    obj2.userData.velocity.y += impulse * ny;
-                    obj2.userData.velocity.z += impulse * nz;
-
-                    obj1.userData.rotateVel.x += (Math.random() - 0.5) * 0.01;
-                    obj1.userData.rotateVel.y += (Math.random() - 0.5) * 0.01;
-                    obj2.userData.rotateVel.x += (Math.random() - 0.5) * 0.01;
-                    obj2.userData.rotateVel.y += (Math.random() - 0.5) * 0.01;
-                }
-            }
+        try {
+            const context = ensureContext();
+            await context.resume();
+            const buffer = await loadBuffer();
+            startSource(buffer);
+            setPlayingUi();
+        } catch {
+            stopSource();
+            controller.offset = startAt;
+            setPausedUi();
+        } finally {
+            controller.requested = false;
+            button.classList.remove('is-loading');
         }
     }
 
-    objects.forEach(obj => {
-        obj.position.add(obj.userData.velocity);
-        obj.rotation.x += obj.userData.rotateVel.x;
-        obj.rotation.y += obj.userData.rotateVel.y;
+    function pauseAudio() {
+        syncOffset();
+        stopSource();
+        setPausedUi();
+    }
 
-        obj.userData.velocity.multiplyScalar(0.96);
-        obj.userData.rotateVel.multiplyScalar(0.05);
+    function ensureContext() {
+        if (!controller.context) {
+            controller.context = new AudioContextClass();
+            controller.gain = controller.context.createGain();
+            controller.gain.gain.value = 0.68;
+            controller.gain.connect(controller.context.destination);
+        }
 
-        const gravityStrength = 0.0002;
-        obj.userData.velocity.x -= obj.position.x * gravityStrength;
-        obj.userData.velocity.y -= obj.position.y * gravityStrength;
-        obj.userData.velocity.z -= obj.position.z * gravityStrength;
-    });
+        return controller.context;
+    }
 
-    renderer.render(scene, camera);
+    function loadBuffer() {
+        if (controller.buffer) {
+            return Promise.resolve(controller.buffer);
+        }
+
+        if (!controller.bufferPromise) {
+            const context = ensureContext();
+            controller.bufferPromise = fetch(sourceUrl)
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Audio file failed to load.');
+                    }
+
+                    return response.arrayBuffer();
+                })
+                .then((data) => context.decodeAudioData(data))
+                .then((buffer) => {
+                    controller.buffer = buffer;
+                    return buffer;
+                })
+                .catch((error) => {
+                    controller.bufferPromise = null;
+                    throw error;
+                });
+        }
+
+        return controller.bufferPromise;
+    }
+
+    function startSource(buffer) {
+        stopSource();
+
+        const source = controller.context.createBufferSource();
+        const maxOffset = Math.max(0, buffer.duration - 0.05);
+        const offset = clamp(controller.offset, 0, maxOffset);
+
+        source.buffer = buffer;
+        source.playbackRate.value = controller.rate;
+        source.connect(controller.gain);
+        source.addEventListener('ended', () => {
+            if (controller.source !== source) {
+                return;
+            }
+
+            controller.source = null;
+            controller.offset = startAt;
+            controller.rate = normalRate;
+            setPausedUi();
+        });
+
+        controller.source = source;
+        controller.offset = offset;
+        controller.lastContextTime = controller.context.currentTime;
+        source.start(0, offset);
+    }
+
+    function stopSource() {
+        const source = controller.source;
+        controller.source = null;
+
+        if (!source) {
+            return;
+        }
+
+        source.disconnect();
+
+        try {
+            source.stop();
+        } catch {
+            // The source may already have stopped naturally.
+        }
+    }
+
+    function syncOffset() {
+        if (!controller.isPlaying || !controller.context) {
+            return;
+        }
+
+        const now = controller.context.currentTime;
+        const delta = Math.max(0, now - controller.lastContextTime);
+        controller.offset += delta * controller.rate;
+        controller.lastContextTime = now;
+    }
+
+    return {
+        update() {
+            if (!controller.isPlaying) {
+                return;
+            }
+
+            syncOffset();
+
+            const targetRate = state.reducedMotion ? normalRate : (state.pointer.down ? slowRate : normalRate);
+            const rateEase = targetRate < controller.rate ? 0.18 : 0.08;
+            controller.rate = lerp(controller.rate, targetRate, rateEase);
+
+            if (controller.source) {
+                controller.source.playbackRate.value = controller.rate;
+            }
+        }
+    };
 }
 
-animate();
+const scene = createSceneController(AppState);
+const interactions = createInteractionController(AppState);
+const scroll = createScrollController(AppState);
+const cssMotion = createCssMotionController(AppState);
+const audio = createAudioController(AppState);
+
+function restoreHashTarget(attempt = 0) {
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get('chapter') || (window.location.hash ? window.location.hash.slice(1) : '');
+    const target = targetId ? document.getElementById(targetId) : null;
+
+    if (target) {
+        scroll.scrollTo(target, { immediate: true });
+
+        if (attempt < 2) {
+            window.setTimeout(() => restoreHashTarget(attempt + 1), 120);
+        }
+    }
+}
+
+requestAnimationFrame(() => restoreHashTarget());
+
+function tick(time) {
+    scroll.update(time);
+    scene.update(time);
+    interactions.update();
+    cssMotion.update();
+    audio.update();
+    requestAnimationFrame(tick);
+}
+
+requestAnimationFrame(tick);
 
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    scene.resize();
+    scroll.refresh();
+    cssMotion.refresh();
 });
 
-function initTiltEffect() {
-    document.querySelectorAll('.card').forEach(wrapper => {
-        const visual = wrapper.querySelector('.card-visual');
+window.addEventListener('pagehide', () => {
+    scroll.destroy();
+});
 
-        wrapper.addEventListener('mousemove', (e) => {
-            const rect = wrapper.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+const cursor = document.querySelector('.custom-cursor');
 
-            visual.style.setProperty('--mouse-x', `${x}px`);
-            visual.style.setProperty('--mouse-y', `${y}px`);
+if (cursor && window.gsap) {
+    window.gsap.set(cursor, { xPercent: -50, yPercent: -50 });
+    const xTo = window.gsap.quickTo(cursor, "x", { duration: 0.15, ease: "power3" });
+    const yTo = window.gsap.quickTo(cursor, "y", { duration: 0.15, ease: "power3" });
 
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            const rotateX = ((y - centerY) / centerY) * -1;
-            const rotateY = (x - centerX) / centerX;
-
-            visual.style.transform = `
-                perspective(1000px) 
-                rotateX(${rotateX * 4}deg) 
-                rotateY(${rotateY * 4}deg) 
-                scale3d(1.02, 1.02, 1.02)
-            `;
-        });
-
-        wrapper.addEventListener('mouseleave', () => {
-            visual.style.transition = 'transform 0.5s ease';
-            visual.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
-            setTimeout(() => { visual.style.transition = 'transform 0.1s'; }, 500);
-        });
+    document.addEventListener('mousemove', (e) => {
+        xTo(e.clientX);
+        yTo(e.clientY);
+    });
+} else if (cursor) {
+    document.addEventListener('mousemove', (e) => {
+        cursor.style.transform = `translate(calc(${e.clientX}px - 50%), calc(${e.clientY}px - 50%))`;
     });
 }
 
-document.addEventListener('DOMContentLoaded', initTiltEffect);
-initTiltEffect();
+const interactables = document.querySelectorAll('a, button, .project-card, .card');
 
-const btn = document.getElementById('contactBtn');
-
-if (btn) {
-    btn.addEventListener('mousemove', (e) => {
-        const rect = btn.getBoundingClientRect();
-        const x = e.clientX - rect.left - rect.width / 2;
-        const y = e.clientY - rect.top - rect.height / 2;
-
-        btn.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px) scale(1.1)`;
-        btn.style.background = 'white';
-        btn.style.color = 'black';
-        btn.style.borderColor = 'white';
+interactables.forEach((el) => {
+    el.addEventListener('mouseenter', () => {
+        cursor?.classList.add('active');
     });
-
-    btn.addEventListener('mouseleave', () => {
-        btn.style.transform = 'translate(0px, 0px) scale(1)';
-        btn.style.background = 'rgba(255, 255, 255, 0.05)';
-        btn.style.color = 'white';
-        btn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+    
+    el.addEventListener('mouseleave', () => {
+        cursor?.classList.remove('active');
     });
-}
+});
 
-function initVoidGravity() {
-    const voidZone = document.querySelector('.void-zone');
-    const footerTitle = document.querySelector('.footer-title');
-    const projectGrid = document.querySelector('.project-grid');
+const turb = document.getElementById('revelio-turbulence');
+let turbTween = null;
+let activeCards = 0;
+const turbState = { bf: 0.012 };
 
-    if (!voidZone || !footerTitle || !projectGrid) return;
+const startWobble = () => {
+    activeCards++;
+    if (!window.gsap || !turb || turbTween) return;
+    turbTween = window.gsap.to(turbState, {
+        bf: 0.02,
+        duration: 2.2,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        onUpdate: () => turb.setAttribute('baseFrequency', `${turbState.bf} ${turbState.bf * 1.25}`)
+    });
+};
 
-    let isUserInteracting = false;
-    let interactionTimeout;
-    let currentDriftDir = 0; // 0 = Idle, 1 = Down, -1 = Up
+const stopWobble = () => {
+    activeCards = Math.max(0, activeCards - 1);
+    if (activeCards === 0 && turbTween) {
+        turbTween.kill();
+        turbTween = null;
+    }
+};
 
-    const onUserInteract = () => {
-        isUserInteracting = true;
-        currentDriftDir = 0; // Break latch immediately
-        clearTimeout(interactionTimeout);
-
-        interactionTimeout = setTimeout(() => {
-            isUserInteracting = false;
-        }, 50);
-    };
-
-    window.addEventListener('wheel', onUserInteract, { passive: true });
-    window.addEventListener('touchmove', onUserInteract, { passive: true });
-    window.addEventListener('keydown', onUserInteract, { passive: true });
-
-    function gravityLoop() {
-        requestAnimationFrame(gravityLoop);
-
-        if (isUserInteracting) return;
-
-        const voidRect = voidZone.getBoundingClientRect();
-        const viewportHeight = window.innerHeight;
-        const screenCenter = viewportHeight / 2;
-
-        // --- PHASE 1: TRIGGER LATCH ---
-        if (currentDriftDir === 0) {
-            if (voidRect.top < screenCenter && voidRect.bottom > screenCenter) {
-                const offsetFromTop = screenCenter - voidRect.top;
-                const progress = offsetFromTop / voidRect.height;
-
-                // Trigger Zone: Middle 40%
-                if (progress > 0.1 && progress < 0.9) {
-                    currentDriftDir = (progress < 0.5) ? 1 : -1;
-                }
-            }
-        }
-
-        // --- PHASE 2: EXECUTE WITH EASING ---
-        if (currentDriftDir === 1) {
-            // GOING DOWN -> Target: Center of Footer Title
-            const footerRect = footerTitle.getBoundingClientRect();
-            const footerCenter = footerRect.top + (footerRect.height / 2);
-
-            // Distance remaining to target
-            const dist = footerCenter - screenCenter;
-
-            if (dist <= 2) {
-                // Close enough to snap and stop
-                currentDriftDir = 0;
-            } else {
-                // Easing Formula: Speed = 5% of remaining distance
-                // Clamp: Minimum 2px (to finish), Maximum 60px (to prevent warping)
-                const speed = Math.max(2, Math.min(dist * 0.02, 60));
-                window.scrollBy(0, speed);
-            }
-
-        } else if (currentDriftDir === -1) {
-            // GOING UP -> Target: Bottom of Project Grid enters view
-            const projectRect = projectGrid.getBoundingClientRect();
-
-            // We want the bottom of the grid to be roughly 50px above the bottom of the viewport
-            // This creates a nice "parked" view of the projects
-            const targetY = viewportHeight - 50;
-            const dist = targetY - projectRect.bottom;
-
-            if (dist <= 2) {
-                currentDriftDir = 0;
-            } else {
-                const speed = Math.max(2, Math.min(dist * 0.02, 60));
-                window.scrollBy(0, -speed);
-            }
-        }
+document.querySelectorAll('.card').forEach((card) => {
+    const visual = card.querySelector('.card-visual') || card;
+    let overlay = visual.querySelector('.card-revelio-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'card-revelio-overlay';
+        visual.appendChild(overlay);
     }
 
-    gravityLoop();
-}
+    const state = { x: 0, y: 0, r: 0 };
 
-document.addEventListener('DOMContentLoaded', initVoidGravity);
-initVoidGravity();
+    const updateVars = () => {
+        overlay.style.setProperty('--revelio-x', `${state.x}px`);
+        overlay.style.setProperty('--revelio-y', `${state.y}px`);
+        overlay.style.setProperty('--revelio-r', `${state.r}px`);
+    };
+
+    const xTo = window.gsap ? window.gsap.quickTo(state, "x", { duration: 0.38, ease: "power3", onUpdate: updateVars }) : null;
+    const yTo = window.gsap ? window.gsap.quickTo(state, "y", { duration: 0.38, ease: "power3", onUpdate: updateVars }) : null;
+
+    card.addEventListener('mouseenter', (e) => {
+        const rect = visual.getBoundingClientRect();
+        state.x = e.clientX - rect.left + 50;
+        state.y = e.clientY - rect.top + 50;
+        if (xTo && yTo) {
+            xTo(state.x);
+            yTo(state.y);
+        }
+        updateVars();
+        startWobble();
+        const targetR = Math.max(rect.width, rect.height) * 1.05;
+        if (window.gsap) {
+            window.gsap.to(state, { r: targetR, duration: 1.25, ease: "power2.out", onUpdate: updateVars });
+        } else {
+            state.r = targetR;
+            updateVars();
+        }
+    });
+
+    card.addEventListener('mousemove', (e) => {
+        const rect = visual.getBoundingClientRect();
+        const relX = e.clientX - rect.left + 50;
+        const relY = e.clientY - rect.top + 50;
+        if (xTo && yTo) {
+            xTo(relX);
+            yTo(relY);
+        } else {
+            state.x = relX;
+            state.y = relY;
+            updateVars();
+        }
+    });
+
+    card.addEventListener('mouseleave', (e) => {
+        stopWobble();
+        if (window.gsap) {
+            window.gsap.to(state, { r: 0, duration: 0.85, ease: "power2.inOut", onUpdate: updateVars });
+        } else {
+            state.r = 0;
+            updateVars();
+        }
+    });
+});

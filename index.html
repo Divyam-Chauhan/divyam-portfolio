@@ -1,177 +1,324 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Divyam Chauhan's Portfolio</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/lenis@1.3.23/dist/lenis.css">
+    <link rel="stylesheet" href="style.css?v=14">
 </head>
 
 <body>
+    <div class="custom-cursor"></div>
+    <svg width="0" height="0" style="position: absolute; pointer-events: none;">
+        <filter id="revelio-filter" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence id="revelio-turbulence" type="fractalNoise" baseFrequency="0.012 0.015" numOctaves="2" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="65" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+    </svg>
 
-    <div class="hero-section">
-        <div class="overlay">
-            <h1>DIVYAM CHAUHAN</h1>
-            <p>Divya Prakash Singh Chauhan</p>
-        </div>
-        <div class="scroll-indicator">
-            <span class="scroll-text">Scroll to explore</span>
-            <div class="scroll-line"></div>
-        </div>
-    </div>
+    <button class="audio-toggle" id="audioToggle" type="button" aria-label="Play soundtrack" aria-pressed="false"
+        title="Play soundtrack">
+        <span class="audio-toggle__meter" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+        </span>
+    </button>
 
-    <div class="content-section">
-        <div
-            style="font-size: 1rem; color: #444; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 40px; border-bottom: 1px solid #222; padding-bottom: 20px;">
-            Selected Work
-        </div>
+    <audio id="siteAudio" preload="auto" src="Resources/Stars Surfing.mp3"></audio>
 
-        <div class="project-grid">
-            <div class="card span-8">
-                <div class="card-visual">
-                    <span class="card-label">System Architecture • Full Stack</span>
-                    <h2 class="card-title">The Opportunity Bridge</h2>
-                    <p class="card-desc">
-                        A tri-node crowdfunding architecture that enforces a "Verification Layer" before capital flows.
-                        Features dynamic session role injection (Seeker, Admin, Donor) from a single logic stream.
-                    </p>
-
-                    <div class="action-row">
-                        <a href="https://github.com/Dihadi-mantri/The-Opportunity-Bridge" target="_blank"
-                            class="link-btn">
-                            View Code &lt;/&gt;
-                        </a>
-                    </div>
-                    <div style="margin-top: auto;">
-                        <span class="tech-pill">Python / Flask</span>
-                        <span class="tech-pill">SQLAlchemy</span>
-                        <span class="tech-pill">Jinja2</span>
-                    </div>
-                </div>
+    <main>
+        <section class="hero-section chapter-section" id="hero" data-chapter="hero" aria-labelledby="hero-title">
+            <div class="overlay">
+                <h1 id="hero-title">DIVYAM CHAUHAN</h1>
+                <p>Building AI systems, cinematic interfaces, and full-stack products with a sharper point of view.</p>
             </div>
 
-            <div class="card span-4">
-                <div class="card-visual">
-                    <span class="card-label">Status</span>
-                    <h2 class="card-title">Deployed &<br>Verified.</h2>
-                    <p class="card-desc" style="font-size: 0.9rem;">Serving 3 user roles securely.</p>
-                </div>
+            <div class="hero-proof" aria-label="Portfolio focus areas">
+                <span>Systems</span>
+                <span>Interaction</span>
+                <span>AI Products</span>
             </div>
 
-            <div class="card span-8">
-                <div class="card-visual">
-                    <span class="card-label">AI/ML • Public Health Infrastructure</span>
-                    <h2 class="card-title">HealthSathi</h2>
+            <div class="scroll-indicator" aria-hidden="true">
+                <span class="scroll-text">Enter Archive</span>
+                <div class="scroll-line"></div>
+            </div>
+        </section>
 
-                    <p class="card-desc">
-                        A "Digital First Responder" for rural India on WhatsApp. It uses a RAG pipeline to map
-                        vernacular
-                        symptoms (Hindi/Bhojpuri) to Government Health Schemes.
-                        <br><br>
-                        <strong>The Engine:</strong> Features a "Context-Aware Personality Switch" (Gemma 27B) that
-                        dynamically toggles between empathetic small talk and strict medical triage protocols to prevent
-                        hallucinations.
-                    </p>
-
-                    <div class="action-row">
-                        <a href="https://huggingface.co/spaces/dopami9/Healthsathi" target="_blank" class="link-btn">
-                            Live Demo ↗
-                        </a>
-                        <a href="https://github.com/Dihadi-mantri/Healthsathi" target="_blank" class="link-btn">
-                            View Code &lt;/&gt;
-                        </a>
-                    </div>
-
-                    <div class="tech-stack">
-                        <span class="tech-pill">Twilio API</span>
-                        <span class="tech-pill">Gemma 27B (LLM)</span>
-                        <span class="tech-pill">LangChain RAG</span>
-                        <span class="tech-pill">Flask</span>
-                    </div>
-                </div>
+        <section class="identity-section chapter-section" id="identity" data-chapter="identity" aria-labelledby="identity-title">
+            <div class="identity-atmosphere" aria-hidden="true">
+                <span class="identity-orbit identity-orbit--one"></span>
+                <span class="identity-orbit identity-orbit--two"></span>
+                <span class="identity-orbit identity-orbit--three"></span>
             </div>
 
-            <div class="card span-4">
-                <div class="card-visual">
-                    <span class="card-label">Status</span>
-                    <h2 class="card-title">Deployed &<br>Verified.</h2>
-                    <p class="card-desc" style="font-size: 0.9rem;">Serving people across WhatsApp & SMS<br>even on
-                        feature
-                        phones.</p>
+            <div class="section-inner identity-grid">
+                <div class="identity-heading identity-panel">
+                    <h2 id="identity-title">The interests under the surface.</h2>
+                    <p class="identity-thesis">Not replacing the work. Powering the taste behind it.</p>
                 </div>
-            </div>
 
-            <div class="card span-6">
-                <div class="card-visual">
-                    <span class="card-label">Generative AI • Persona Engineering</span>
-                    <h2 class="card-title">Devta</h2>
+                <div class="identity-copy identity-panel">
+                    <div class="interest-pill">Prime desires</div>
+                    <p>Agentic architecture, AI systems, machine learning, and neural networks are the things I live and strive for.</p>
+                    <p>Projects stay the proof. This is the direction of the next build.</p>
 
-                    <p class="card-desc">
-                        A personality-based AI that breaks the "polite assistant" mold. It mimics a chaotic 20-year-old
-                        CS
-                        major with a "God Complex" and a self-declared IQ of 1000.
-                        <br><br>
-                        <strong>The Logic:</strong> Enforces a strict "Stand on Business" prompt constraint—rejecting
-                        long,
-                        boring paragraphs in favor of punchy, high-energy roasts and "top-tier" wit.
-                    </p>
-
-                    <div class="action-row">
-                        <a href="https://huggingface.co/spaces/dopami9/DEVTA" target="_blank" class="link-btn">
-                            Chat with God ↗
-                        </a>
+                    <div class="prime-list" aria-label="Primary areas of interest">
+                        <div class="prime-line">
+                            <strong>Agentic architecture</strong>
+                            <em>Multi-step systems with memory, tools, and judgment.</em>
+                        </div>
+                        <div class="prime-line">
+                            <strong>AI and machine learning</strong>
+                            <em>Practical model behavior shaped into usable products.</em>
+                        </div>
+                        <div class="prime-line">
+                            <strong>Neural networks</strong>
+                            <em>Representation, optimization, emergence, and failure modes.</em>
+                        </div>
                     </div>
 
-                    <div class="tech-stack">
-                        <span class="tech-pill">Python</span>
-                        <span class="tech-pill">LangChain</span>
-                        <span class="tech-pill">Google Gemini API</span>
-                        <span class="tech-pill">Gradio</span>
+                    <div class="identity-map" aria-hidden="true">
+                        <span class="map-node map-node--one"></span>
+                        <span class="map-node map-node--two"></span>
+                        <span class="map-node map-node--three"></span>
+                        <span class="map-node map-node--four"></span>
+                        <span class="map-path map-path--one"></span>
+                        <span class="map-path map-path--two"></span>
+                        <span class="map-path map-path--three"></span>
                     </div>
                 </div>
             </div>
+        </section>
 
-            <div class="card span-6">
-                <div class="card-visual">
-                    <span class="card-label">Next Project</span>
-                    <h2 class="card-title">Coming Soon</h2>
+        <section class="capabilities-section chapter-section" id="capabilities" data-chapter="capabilities" aria-labelledby="capabilities-title">
+            <div class="section-inner">
+                <div class="chapter-heading">
+                    <h2 id="capabilities-title">Built where product logic meets motion.</h2>
+                </div>
+
+                <div class="capability-list" aria-label="Core capabilities">
+                    <article class="capability-line">
+                        <h3>Agentic Systems</h3>
+                        <p>RAG pipelines, tool use, model routing, and memory patterns shaped into practical product behavior.</p>
+                    </article>
+                    <article class="capability-line">
+                        <h3>Product Architecture</h3>
+                        <p>Role-aware workflows, verification gates, data models, and secure surfaces that support real use.</p>
+                    </article>
+                    <article class="capability-line">
+                        <h3>Interaction Craft</h3>
+                        <p>WebGL, scroll direction, responsive polish, and details that make interfaces feel authored.</p>
+                    </article>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
 
-    <div class="void-zone"></div>
+        <section class="content-section archive-section chapter-section" id="archive" data-chapter="archive" aria-labelledby="archive-title">
+            <div class="section-inner archive-intro">
+                <div>
+                    <h2 id="archive-title">Featured Work</h2>
+                    <p>Selected builds with product weight, deployed surfaces, and clear technical choices.</p>
+                </div>
+            </div>
 
-    <div class="footer-section">
-        <h2 class="footer-title">BUILD<br>EMPIRES</h2>
+            <div class="project-grid">
+                <article class="card span-6 card--opportunity">
+                    <div class="card-visual">
+                        <div class="lens-content">
+                            <div class="card-header">
+                                <div class="status-badge status-badge--active">
+                                    <span class="status-dot"></span>
+                                    Deployed
+                                </div>
+                            </div>
+                            <span class="card-label">System Architecture / Full Stack</span>
+                            <h3 class="card-title">The Opportunity Bridge</h3>
+                            <p class="card-desc">
+                                A tri-node crowdfunding product with a strict verification layer before capital moves between Seeker, Admin, and Donor roles.
+                            </p>
+                            <div class="card-meta">
+                                <strong>Core move:</strong> Role injection from one logic stream.
+                            </div>
+                            <div class="card-footer">
+                                <div class="action-row">
+                                    <a href="https://github.com/Dihadi-mantri/The-Opportunity-Bridge" target="_blank"
+                                        rel="noopener noreferrer" class="link-btn">
+                                        Code &rarr;
+                                    </a>
+                                </div>
+                                <div class="tech-stack">
+                                    <span class="tech-pill">Python / Flask</span>
+                                    <span class="tech-pill">SQLAlchemy</span>
+                                    <span class="tech-pill">Jinja2</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
 
-        <div class="footer-cta">
-            <a href="mailto:divyaprakashsinghchauhan1234@gmail.com" class="magnetic-btn" id="contactBtn">
-                Start a Project
-            </a>
-        </div>
+                <article class="card span-6 card--healthsathi">
+                    <div class="card-visual">
+                        <div class="lens-content">
+                            <div class="card-header">
+                                <div class="status-badge status-badge--active">
+                                    <span class="status-dot"></span>
+                                    Live
+                                </div>
+                            </div>
+                            <span class="card-label">AI/ML / Public Health</span>
+                            <h3 class="card-title">HealthSathi</h3>
+                            <p class="card-desc">
+                                A WhatsApp first responder for rural India that maps vernacular symptoms to government health schemes and triage paths.
+                            </p>
+                            <div class="card-meta">
+                                <strong>Core move:</strong> RAG, Gemma switching, WhatsApp and SMS reach.
+                            </div>
+                            <div class="card-footer">
+                                <div class="action-row">
+                                    <a href="https://huggingface.co/spaces/dopami9/Healthsathi" target="_blank"
+                                        rel="noopener noreferrer" class="link-btn">
+                                        Demo &rarr;
+                                    </a>
+                                    <a href="https://github.com/Dihadi-mantri/Healthsathi" target="_blank"
+                                        rel="noopener noreferrer" class="link-btn">
+                                        Code &rarr;
+                                    </a>
+                                </div>
+                                <div class="tech-stack">
+                                    <span class="tech-pill">Twilio API</span>
+                                    <span class="tech-pill">Gemma 27B</span>
+                                    <span class="tech-pill">LangChain RAG</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
 
-        <div class="social-row">
-            <a href="https://www.linkedin.com/in/divyamchauhan2/" target="_blank" class="social-link">LinkedIn</a>
-            <a href="https://github.com/Divyam-Chauhan" target="_blank" class="social-link">GitHub</a>
-            <a href="https://discordapp.com/users/dmix_" target="_blank" class="social-link"
-                title="User: dmix_">Discord</a>
-        </div>
+                <article class="card span-8 card--devta">
+                    <div class="card-visual">
+                        <div class="lens-content">
+                            <div class="card-header">
+                                <div class="status-badge status-badge--chat">
+                                    <span class="status-dot"></span>
+                                    Active
+                                </div>
+                            </div>
+                            <span class="card-label">Generative AI / Persona Engineering</span>
+                            <h3 class="card-title">Devta</h3>
+                            <p class="card-desc">
+                                A personality-led AI space built around a specific character system, rejection of bland defaults, and live Gemini responses.
+                            </p>
+                            <div class="card-meta">
+                                <strong>Core move:</strong> Custom persona constraints in a public chat surface.
+                            </div>
+                            <div class="card-footer">
+                                <div class="action-row">
+                                    <a href="https://huggingface.co/spaces/dopami9/DEVTA" target="_blank"
+                                        rel="noopener noreferrer" class="link-btn">
+                                        Open &rarr;
+                                    </a>
+                                </div>
+                                <div class="tech-stack">
+                                    <span class="tech-pill">Python</span>
+                                    <span class="tech-pill">Google Gemini API</span>
+                                    <span class="tech-pill">Gradio</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
 
-        <div style="margin-top: 80px; color: #444; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px;">
-            © 2026 Divyam Chauhan
-        </div>
+                <article class="card span-4 card--comingsoon">
+                    <div class="card-visual">
+                        <div class="lens-content justify-center">
+                            <div class="card-header">
+                            </div>
+                            <span class="card-label">Next Build</span>
+                            <h3 class="card-title">In Motion</h3>
+                            <p class="card-desc card-desc--compact">
+                                A new product surface shaped around performance, agency, and better human feedback.
+                            </p>
+                            <div class="coming-soon-visual" aria-hidden="true">
+                                <div class="pulse-ring"></div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="lab-section chapter-section" id="lab" data-chapter="lab" aria-labelledby="lab-title">
+            <div class="section-inner lab-layout">
+                <div class="lab-heading">
+                    <h2 id="lab-title">Lab notes from the edge.</h2>
+                </div>
+
+                <div class="lab-strip">
+                    <article class="lab-note">
+                        <span>Experiment</span>
+                        <h3>AI behavior systems</h3>
+                        <p>Prompts, routing, and evaluation loops that produce a distinct product voice.</p>
+                    </article>
+                    <article class="lab-note">
+                        <span>System</span>
+                        <h3>Verification-first flows</h3>
+                        <p>Interfaces that make trust visible before users make a serious move.</p>
+                    </article>
+                    <article class="lab-note">
+                        <span>Motion</span>
+                        <h3>Scroll-led scenes</h3>
+                        <p>WebGL and layout working together so movement supports the story.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <div class="void-zone" aria-hidden="true"></div>
+
+        <section class="footer-section chapter-section" id="contact" data-chapter="footer" aria-labelledby="footer-title">
+            <h2 class="footer-title" id="footer-title">BUILD<br>WHAT FEELS<br>ALIVE</h2>
+
+            <div class="footer-cta">
+                <a href="mailto:divyaprakashsinghchauhan1234@gmail.com" class="magnetic-btn" id="contactBtn">
+                    Start a Project
+                </a>
+            </div>
+
+            <div class="social-row">
+                <a href="https://www.linkedin.com/in/divyamchauhan2/" target="_blank" rel="noopener noreferrer"
+                    class="social-link">LinkedIn</a>
+                <a href="https://github.com/Divyam-Chauhan" target="_blank" rel="noopener noreferrer"
+                    class="social-link">GitHub</a>
+                <a href="https://discordapp.com/users/dmix_" target="_blank" rel="noopener noreferrer" class="social-link"
+                    title="User: dmix_">Discord</a>
+            </div>
+
+            <div class="copyright">&copy; 2026 Divyam Chauhan</div>
+        </section>
+    </main>
+
+    <div class="scroll-progress" aria-hidden="true">
+        <div class="scroll-progress__bar"></div>
+
     </div>
 
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>
-    <script type="module" src="script.js"></script>
+    <script src="https://unpkg.com/lenis@1.3.23/dist/lenis.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js"></script>
+    <script type="module" src="script.js?v=3"></script>
 </body>
 
 </html>
